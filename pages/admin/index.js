@@ -14,7 +14,7 @@ import { mutate } from 'swr';
 // include credentials for admin APIs (session cookie) so server can authenticate requests
 const fetcher = url => fetch(url, { credentials: 'include' }).then(r => r.json());
 
-export default function Admin(){
+export default function Admin({ dbError = false, errorMessage = '' }){
   const { data: orders } = useSWR('/api/orders?admin=true', fetcher);
   const { data: messages } = useSWR('/api/messages', fetcher);
   const { data: guestOrders } = useSWR('/api/admin/guest-orders', fetcher);
@@ -282,6 +282,16 @@ export default function Admin(){
   }
 
   return (
+    dbError ? (
+      <div className="p-6">
+        <h1 className="text-2xl font-bold mb-4">Admin Dashboard — Error</h1>
+        <div className="bg-white p-4 rounded shadow">
+          <p className="text-red-600 font-semibold">Unable to initialize server resources.</p>
+          <p className="mt-2 text-sm text-gray-700">Reason: {errorMessage || 'Database connection failed or required environment variables are missing.'}</p>
+          <p className="mt-3 text-sm">Check environment variables on your deployment platform: <code>MONGODB_URI</code>, <code>NEXTAUTH_URL</code>, <code>NEXTAUTH_SECRET</code>. After correcting, redeploy to restore the admin panel.</p>
+        </div>
+      </div>
+    ) : (
     <div className="p-6">
       <div className="flex items-center justify-between mb-4">
         <h1 className="text-2xl font-bold">Admin Dashboard</h1>
@@ -708,12 +718,21 @@ export default function Admin(){
         </div>
       </section>
     </div>
+    )
   );
 }
 
 export async function getServerSideProps(ctx){
   const session = await getSession(ctx);
-  if(!session || session.user.role !== 'admin') return { redirect: { destination: '/login', permanent: false } };
-  await dbConnect();
-  return { props: {} };
+  // guard session.user safely to avoid server crashes when the session shape is unexpected
+  if(!session || session.user?.role !== 'admin') return { redirect: { destination: '/login', permanent: false } };
+  try{
+    await dbConnect();
+    return { props: {} };
+  }catch(e){
+    // log server-side so Vercel shows the reason in function logs
+    try{ console.error('[admin] getServerSideProps dbConnect failed', e?.message || e); }catch(__){}
+    // return a non-500 friendly response and display instructions to fix env
+    return { props: { dbError: true, errorMessage: (e?.message || String(e)) } };
+  }
 }
