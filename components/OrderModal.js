@@ -2,10 +2,12 @@
 import { useState, useContext, useEffect } from "react";
 import { CartContext } from "./CartContext";
 import { useSession } from "next-auth/react";
+import { useToast } from '@/components/Toast';
 
 export default function OrderModal({ open, onClose, coupon = null }) {
   const { cart, subtotal, clear } = useContext(CartContext);
   const { data: session } = useSession();
+  const toast = useToast();
   // mode: choice | summary | guest
   const [mode, setMode] = useState("choice");
   const [form, setForm] = useState({ name: "", phone: "", email: "", address: "", locationUrl: "", whatsapp: "" });
@@ -45,10 +47,10 @@ export default function OrderModal({ open, onClose, coupon = null }) {
     setLoading(false);
     if (res.ok) {
       clear();
-      alert("Order placed. Order ID: " + res.orderId);
+      toast?.push?.({ message: 'Order placed. Order ID: ' + res.orderId, type: 'success' });
       onClose();
     } else {
-      alert("Error placing order: " + (res.error || "unknown"));
+      toast?.push?.({ message: 'Error placing order: ' + (res.error || 'unknown'), type: 'error' });
     }
   };
 
@@ -69,9 +71,9 @@ export default function OrderModal({ open, onClose, coupon = null }) {
     try{
       const res = await fetch('/api/orders', { method: 'POST', credentials: 'include', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) }).then(r=>r.json());
       setLoading(false);
-      if(res.ok){ clear(); alert('Order placed. Order ID: ' + res.orderId); onClose(); }
-      else alert('Error: ' + (res.error||'unknown'));
-    }catch(e){ setLoading(false); alert('Network error: ' + (e.message||String(e))); }
+      if(res.ok){ clear(); toast?.push?.({ message: 'Order placed. Order ID: ' + res.orderId, type: 'success' }); onClose(); }
+      else toast?.push?.({ message: 'Error: ' + (res.error||'unknown'), type: 'error' });
+  }catch(e){ setLoading(false); toast?.push?.({ message: 'Network error: ' + (e.message||String(e)), type: 'error' }); }
   };
 
   if (!open) return null;

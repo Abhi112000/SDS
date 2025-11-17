@@ -1,5 +1,6 @@
 import { getSession, useSession } from "next-auth/react";
 import { useState } from "react";
+import { useToast } from '@/components/Toast';
 
 export default function Profile({ user }) {
   const { data: session } = useSession();
@@ -12,6 +13,7 @@ export default function Profile({ user }) {
   });
 
   const [loading, setLoading] = useState(false);
+  const toast = useToast();
 
   const save = async () => {
     try {
@@ -19,14 +21,15 @@ export default function Profile({ user }) {
       const res = await fetch("/api/profile", {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
+        credentials: 'include',
         body: JSON.stringify(form),
       });
 
       if (!res.ok) throw new Error("Failed to update profile");
-      alert("Profile updated successfully!");
+      toast?.push?.({ message: 'Profile updated successfully!', type: 'success' });
     } catch (err) {
       console.error(err);
-      alert("Something went wrong while saving your profile.");
+      toast?.push?.({ message: 'Something went wrong while saving your profile.', type: 'error' });
     } finally {
       setLoading(false);
     }

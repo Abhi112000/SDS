@@ -8,8 +8,10 @@ import GuestOrder from '@/models/GuestOrder';
 import useSWR from 'swr';
 import { useEffect, useRef, useState, useCallback } from 'react';
 import { useSession } from 'next-auth/react';
+import { useToast } from '@/components/Toast';
 import Pusher from 'pusher-js';
 import { mutate } from 'swr';
+import AdminSidebar from '@/components/AdminSidebar';
 
 // include credentials for admin APIs (session cookie) so server can authenticate requests
 const fetcher = url => fetch(url, { credentials: 'include' }).then(r => r.json());
@@ -52,11 +54,12 @@ export default function Admin({ dbError = false, errorMessage = '' }){
       if(!res.ok) throw new Error(body?.error || 'Save failed');
       mutateInvoiceSettings();
       setSettingsBusy(false);
-      alert('Invoice settings saved');
-    }catch(e){ setSettingsBusy(false); alert('Save failed: ' + (e.message || 'error')); }
+      toast?.push?.({ message: 'Invoice settings saved', type: 'success' });
+    }catch(e){ setSettingsBusy(false); toast?.push?.({ message: 'Save failed: ' + (e.message || 'error'), type: 'error' }); }
   }
   const chartRef = useRef();
   const { data: session, status } = useSession();
+  const toast = useToast();
   // Quick add product state
   const [title, setTitle] = useState('');
   const [price, setPrice] = useState('');
@@ -116,16 +119,7 @@ export default function Admin({ dbError = false, errorMessage = '' }){
   },[]);
 
   useEffect(()=>{
-  if(!analytics || !chartRef.current) return;
-    // simple chart via Chart.js CDN (assumes it's loaded in _app or page via script tag)
-    try{
-      const Chart = (globalThis).Chart;
-      if(!Chart) return;
-      const ctx = chartRef.current.getContext('2d');
-      const labels = analytics.recent.map(r=>r._id);
-      const data = analytics.recent.map(r=>r.count);
-      new Chart(ctx, { type: 'bar', data: { labels, datasets: [{ label: 'Orders', data, backgroundColor: 'rgba(59,130,246,0.6)' }] }, options: { responsive: true } });
-    }catch(e){ console.warn('chart init failed', e); }
+    // Chart removed per admin UI simplification.
   },[analytics]);
 
   useEffect(()=>{
@@ -271,7 +265,7 @@ export default function Admin({ dbError = false, errorMessage = '' }){
     </body>
     </html>`;
     const w = window.open('about:blank','invoice');
-    if(!w){ alert('Popup blocked. Allow popups to download invoice.'); return; }
+    if(!w){ toast?.push?.({ message: 'Popup blocked. Allow popups to download invoice.', type: 'error' }); return; }
     w.document.write(invHtml);
     w.document.close();
     setTimeout(()=>{ try{ w.focus(); w.print(); }catch(e){} },350);
@@ -293,13 +287,16 @@ export default function Admin({ dbError = false, errorMessage = '' }){
       </div>
     ) : (
     <div className="p-6">
-      <div className="flex items-center justify-between mb-4">
-        <h1 className="text-2xl font-bold">Admin Dashboard</h1>
-        <div className="space-x-2">
-          <a href="/admin/products" className="px-3 py-1 bg-gray-100 rounded">Products</a>
-          <a href="/admin/coupons" className="px-3 py-1 bg-gray-100 rounded">Coupons</a>
-        </div>
-      </div>
+      <div className="grid grid-cols-1 md:grid-cols-5 gap-6">
+        <AdminSidebar />
+        <main className="md:col-span-4">
+          <div className="flex items-center justify-between mb-4">
+            <h1 className="text-2xl font-bold">Admin Dashboard</h1>
+            <div className="space-x-2">
+              <a href="/admin/products" className="px-3 py-1 bg-gray-100 rounded">Products</a>
+              <a href="/admin/coupons" className="px-3 py-1 bg-gray-100 rounded">Coupons</a>
+            </div>
+          </div>
       {/* Quick add product form */}
       <div className="bg-white p-4 rounded shadow mb-6">
         <h3 className="font-semibold mb-2">Quick Add Product</h3>
@@ -429,10 +426,7 @@ export default function Admin({ dbError = false, errorMessage = '' }){
               <label className="block text-sm">Brand name</label>
               <input value={settingsDraft?.brandName || ''} onChange={e=>setSettingsDraft(prev=>({ ...(prev||{}), brandName: e.target.value }))} className="p-2 border rounded w-full" />
             </div>
-            <div>
-              <label className="block text-sm">Logo path (public)</label>
-              <input value={settingsDraft?.logoPath || ''} onChange={e=>setSettingsDraft(prev=>({ ...(prev||{}), logoPath: e.target.value }))} className="p-2 border rounded w-full" />
-            </div>
+            {/* Logo path removed — invoices will use /images/logo.jpeg by default */}
             <div className="md:col-span-2">
               <label className="block text-sm">Address</label>
               <textarea value={settingsDraft?.address || ''} onChange={e=>setSettingsDraft(prev=>({ ...(prev||{}), address: e.target.value }))} className="p-2 border rounded w-full" rows={2} />
@@ -624,7 +618,7 @@ export default function Admin({ dbError = false, errorMessage = '' }){
                   const total = Number((selectedOrder.total) ?? ((selectedOrder.subtotal || 0) - (selectedOrder.coupon?.discountAmount || 0) + (selectedOrder.shipping || 0) + (selectedOrder.tax || 0))).toFixed(2);
                   const invHtml = `<!doctype html><html><head><meta charset="utf-8"><title>Invoice ${selectedOrder._id}</title><style>body{font-family:Arial,Helvetica,sans-serif;color:#222;padding:20px}h1{font-size:20px}table{width:100%;border-collapse:collapse}td,th{border:1px solid #ddd;padding:8px}</style></head><body><div style="display:flex;justify-content:space-between;align-items:center"><div><h1>Invoice</h1><div>Order ID: ${selectedOrder._id}</div><div>Placed: ${new Date(selectedOrder.createdAt).toLocaleString()}</div></div><div style="text-align:right"><strong>Shree Durga Stationary</strong><div class="muted">Admin invoice</div></div></div><hr/><h3>Customer</h3><div>${selectedOrder.name || ''}<br/>${selectedOrder.email || ''}<br/>${selectedOrder.phone || ''}<br/>${selectedOrder.address || ''}</div><h3>Items</h3><table><thead><tr><th style="padding:8px;border:1px solid #ddd;text-align:left">Product</th><th style="padding:8px;border:1px solid #ddd;text-align:center">Qty</th><th style="padding:8px;border:1px solid #ddd;text-align:right">Unit</th><th style="padding:8px;border:1px solid #ddd;text-align:right">Line Total</th></tr></thead><tbody>${itemsHtml}</tbody></table><div style="width:320px;margin-left:auto;margin-top:12px"><table style="width:100%;border-collapse:collapse"><tr><td style="padding:6px">Subtotal</td><td style="padding:6px;text-align:right">₹${subtotal}</td></tr><tr><td style="padding:6px">Discount${selectedOrder.coupon?(' ('+selectedOrder.coupon.code+')'):''}</td><td style="padding:6px;text-align:right">- ₹${discount}</td></tr><tr><td style="padding:6px">Shipping</td><td style="padding:6px;text-align:right">₹${shipping}</td></tr><tr><td style="padding:6px">Tax</td><td style="padding:6px;text-align:right">₹${tax}</td></tr><tr><td style="padding:6px;font-weight:700;border-top:1px solid #ddd">Payable</td><td style="padding:6px;text-align:right;font-weight:700;border-top:1px solid #ddd">₹${total}</td></tr></table></div><div style="clear:both;margin-top:40px"><small style="color:#666">This is a system generated invoice.</small></div></body></html>`;
                   const w = window.open('about:blank','invoice');
-                  if(!w){ alert('Popup blocked. Allow popups to download invoice.'); return; }
+                  if(!w){ toast?.push?.({ message: 'Popup blocked. Allow popups to download invoice.', type: 'error' }); return; }
                   w.document.write(invHtml);
                   w.document.close();
                   setTimeout(()=>{ try{ w.focus(); w.print(); }catch(e){} },350);
@@ -668,7 +662,7 @@ export default function Admin({ dbError = false, errorMessage = '' }){
                   const couponCode = (order?.coupon?.code) || (selectedInvoice?.payload?.coupon?.code) || (selectedInvoice?.discountLabel) || '';
                   const invHtml = `<!doctype html><html><head><meta charset="utf-8"><title>Invoice ${selectedInvoice.invoiceId}</title><style>body{font-family:Arial,Helvetica,sans-serif;color:#222;padding:20px}h1{font-size:20px}table{width:100%;border-collapse:collapse}td,th{border:1px solid #ddd;padding:8px}.watermark{position:fixed;top:40%;left:50%;transform:translate(-50%,-50%) rotate(-30deg);font-size:80px;color:rgba(0,0,0,0.04);pointer-events:none}.logo{max-height:80px;max-width:220px;object-fit:contain;border-radius:4px}</style></head><body><div class="watermark">${invoiceSettings?.watermarkText || 'SD Stationary invoice'}</div><div style="display:flex;justify-content:space-between;align-items:center"><div style="display:flex;align-items:center;gap:12px"><img src="${invoiceSettings?.logoPath || '/images/logo.jpeg'}" class="logo" alt="logo" /><div><h1>${invoiceSettings?.brandName || 'Shree Durga Stationary'}</h1><div>${invoiceSettings?.address || ''}</div><div>Phone: ${invoiceSettings?.phone || ''} | Email: ${invoiceSettings?.email || ''}</div></div></div><div style="text-align:right"><div>Invoice: ${selectedInvoice.invoiceId}</div><div>Date: ${new Date(selectedInvoice.createdAt).toLocaleString()}</div></div></div><hr/><h3>Customer</h3><div>${order.name || ''}<br/>${order.email || ''}<br/>${order.phone || ''}<br/>${order.address || ''}</div><h3>Items</h3><table><thead><tr><th style="padding:8px;border:1px solid #ddd;text-align:left">Product</th><th style="padding:8px;border:1px solid #ddd;text-align:center">Qty</th><th style="padding:8px;border:1px solid #ddd;text-align:right">Unit</th><th style="padding:8px;border:1px solid #ddd;text-align:right">Line Total</th></tr></thead><tbody>${itemsHtml}</tbody></table><div style="width:320px;margin-left:auto;margin-top:12px"><table style="width:100%;border-collapse:collapse"><tr><td style="padding:6px">Subtotal</td><td style="padding:6px;text-align:right">₹${subtotal}</td></tr><tr><td style="padding:6px">Discount${couponCode?(' ('+couponCode+')'):''}</td><td style="padding:6px;text-align:right">- ₹${discount}</td></tr><tr><td style="padding:6px">Shipping</td><td style="padding:6px;text-align:right">₹${shipping}</td></tr><tr><td style="padding:6px">Tax</td><td style="padding:6px;text-align:right">₹${tax}</td></tr><tr><td style="padding:6px;font-weight:700;border-top:1px solid #ddd">Payable</td><td style="padding:6px;text-align:right;font-weight:700;border-top:1px solid #ddd">₹${total}</td></tr></table></div><div style="clear:both;margin-top:40px"><small style="color:#666">This is a system generated invoice.</small></div></body></html>`;
                   const w = window.open('about:blank','invoice');
-                  if(!w){ alert('Popup blocked. Allow popups to download invoice.'); return; }
+                  if(!w){ toast?.push?.({ message: 'Popup blocked. Allow popups to download invoice.', type: 'error' }); return; }
                   w.document.write(invHtml);
                   w.document.close();
                   setTimeout(()=>{ try{ w.focus(); w.print(); }catch(e){} },350);
@@ -711,12 +705,9 @@ export default function Admin({ dbError = false, errorMessage = '' }){
         </div>
       </section>
 
-      <section className="mt-6">
-        <h3 className="text-lg font-semibold mb-2">Recent Orders (last 7 days)</h3>
-        <div className="bg-white p-4 rounded shadow">
-          <canvas ref={chartRef} />
-        </div>
-      </section>
+      {/* Recent orders chart removed */}
+        </main>
+      </div>
     </div>
     )
   );

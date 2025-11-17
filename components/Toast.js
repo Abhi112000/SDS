@@ -1,3 +1,14 @@
+import React from 'react';
+
+export default function Toast({ message, type = 'success' }){
+  if(!message) return null;
+  const bg = type === 'error' ? 'bg-red-600' : 'bg-green-600';
+  return (
+    <div className={`${bg} text-white fixed top-6 right-6 z-50 px-4 py-2 rounded shadow`} role="status" aria-live="polite">
+      {message}
+    </div>
+  );
+}
 import { createContext, useContext, useState, useCallback } from 'react';
 
 const ToastContext = createContext(null);
@@ -30,4 +41,4 @@ export function ToastProvider({ children }) {
   );
 }
 
-export default ToastProvider;
+// ToastProvider is exported as a named export above.

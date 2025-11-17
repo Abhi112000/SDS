@@ -1,26 +1,28 @@
 import { getSession } from 'next-auth/react';
 import useSWR from 'swr';
 import { useState } from 'react';
+import { useToast } from '@/components/Toast';
 
 const fetcher = url => fetch(url, { credentials: 'include' }).then(r=>r.json());
 
 export default function AdminCoupons(){
   const { data, mutate } = useSWR('/api/coupons/admin', fetcher);
   const [form, setForm] = useState({ code: '', type: 'percent', value: 10, public: false, maxUses: 1 });
+  const toast = useToast();
 
   async function create(){
   try{
     const res = await fetch('/api/coupons/admin', { method: 'POST', credentials: 'include', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(form) });
-    if(!res.ok){
+      if(!res.ok){
       let errText = 'Failed';
       try{ const j = await res.json(); if(j && j.error) errText = j.error; else if(j && j.message) errText = j.message; else if(j && j.detail) errText = JSON.stringify(j); }catch(e){}
-      return alert('Create failed: '+errText);
+      return toast?.push?.({ message: 'Create failed: '+errText, type: 'error' });
     }
     
     const payload = await res.json();
-    if(!payload.ok) return alert('Create failed: '+(payload.error||'unknown'));
+    if(!payload.ok) return toast?.push?.({ message: 'Create failed: '+(payload.error||'unknown'), type: 'error' });
   }catch(e){
-    return alert('Network error: '+(e.message||String(e)));
+    return toast?.push?.({ message: 'Network error: '+(e.message||String(e)), type: 'error' });
   }
     setForm({ code: '', type: 'percent', value: 10, public: false, maxUses: 1 });
     mutate();

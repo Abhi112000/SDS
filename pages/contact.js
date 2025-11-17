@@ -1,14 +1,16 @@
 import { useState } from 'react';
+import { useToast } from '@/components/Toast';
 import Breadcrumbs from '../components/Breadcrumbs';
 import { useRouter } from 'next/router';
 
 export default function Contact(){
   const router = useRouter();
   const [form, setForm] = useState({ name:'', email:'', phone:'', address:'', locationUrl:'', subject:'', text:'' });
+  const toast = useToast();
   const submit = async (e)=>{
     e.preventDefault();
     await fetch('/api/messages', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(form) });
-    alert('Message sent');
+    toast?.push?.({ message: 'Message sent', type: 'success' });
   }
   return (
     <div>

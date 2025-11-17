@@ -1,6 +1,8 @@
 import Link from "next/link";
+import { useToast } from '@/components/Toast';
 
 export default function Footer() {
+  const toast = useToast();
   return (
     <footer className="mt-16">
       <div className="max-w-7xl mx-auto px-4 py-12 grid md:grid-cols-3 gap-6 bg-white border border-gray-100 text-slate-700 rounded-2xl items-start">
@@ -30,7 +32,7 @@ export default function Footer() {
           <p className="text-sm">Email: <a href="mailto:contact.sdstationary@gmail.com" className="underline">contact.sdstationary@gmail.com</a></p>
           <p className="text-sm">Phone: 9818630972, 8077148123</p>
 
-          <form onSubmit={(e)=>{ e.preventDefault(); alert('Subscribed — demo only'); }} className="mt-3 flex gap-2">
+          <form onSubmit={(e)=>{ e.preventDefault(); toast?.push?.({ message: 'Subscribed — demo only', type: 'success' }); }} className="mt-3 flex gap-2">
             <input type="email" placeholder="Your email" required className="flex-1 px-3 py-2 border rounded-md" />
             <button className="px-4 py-2 rounded-md bg-primary text-white">Subscribe</button>
           </form>

@@ -1,7 +1,9 @@
 import { useEffect, useState } from "react";
+import { useToast } from '@/components/Toast';
 
 export default function CouponsList({ onApply }) {
   const [coupons, setCoupons] = useState([]);
+  const toast = useToast();
   useEffect(() => {
     fetch("/api/coupons")
       .then((r) => r.json())
@@ -30,7 +32,7 @@ export default function CouponsList({ onApply }) {
                   headers: { "Content-Type": "application/json" },
                   body: JSON.stringify({ code: c.code, subtotal: 0 }) // subtotal pass later from cart
                 }).then(r => r.json());
-                if (!resp.ok) return alert(resp.error || "Could not apply coupon");
+                if (!resp.ok) return toast?.push?.({ message: (resp.error || "Could not apply coupon"), type: 'error' });
                 onApply(resp.coupon);
               }}
               className="px-3 py-1 btn-primary rounded"

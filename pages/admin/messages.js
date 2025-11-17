@@ -1,6 +1,7 @@
 import useSWR from 'swr';
 import { getSession, useSession } from 'next-auth/react';
 import { useState } from 'react';
+import { useToast } from '@/components/Toast';
 import MessageRenderer from '../../components/MessageRenderer';
 import ReplyBox from '../../components/ReplyBox';
 
@@ -10,6 +11,7 @@ export default function AdminMessages(){
   const { data: session, status } = useSession();
   const { data: messages = [], mutate } = useSWR('/api/messages', fetcher);
   const [replyLoading, setReplyLoading] = useState({});
+  const toast = useToast();
 
   async function markRead(id){
     await fetch('/api/messages/read?id='+id, { method: 'POST' });
@@ -21,7 +23,7 @@ export default function AdminMessages(){
     setReplyLoading(l=>({ ...l, [id]: true }));
     try{
   const r = await fetch('/api/messages/reply', { method: 'POST', credentials: 'include', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id, text }) });
-  if(!r.ok){ const err = await r.json().catch(()=>({ error: 'unknown' })); console.error('reply failed', r.status, err); alert('Reply failed: '+(err.error||err.message||r.status)); }
+  if(!r.ok){ const err = await r.json().catch(()=>({ error: 'unknown' })); console.error('reply failed', r.status, err); toast?.push?.({ message: 'Reply failed: '+(err.error||err.message||r.status), type: 'error' }); }
   else { mutate(); document.getElementById(`reply-${id}`).value = ''; }
     }catch(e){ console.error(e); }
     setReplyLoading(l=>({ ...l, [id]: false }));

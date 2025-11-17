@@ -1,4 +1,5 @@
 import { useContext, useState } from 'react';
+import { useToast } from '@/components/Toast';
 import Head from 'next/head';
 import { CartContext } from '../components/CartContext';
 import Breadcrumbs from '../components/Breadcrumbs';
@@ -7,17 +8,18 @@ export default function Checkout(){
   const { cart, subtotal, clear } = useContext(CartContext);
   const [processing, setProcessing] = useState(false);
   const [paymentMethod, setPaymentMethod] = useState('card');
+  const toast = useToast();
 
   const placeOrder = async ()=>{
-    if(cart.items.length===0) return alert('Cart is empty');
+  if(cart.items.length===0) return toast?.push?.({ message: 'Cart is empty', type: 'error' });
     setProcessing(true);
     const payload = { items: cart.items, subtotal, paymentMethod, guest: true, coupon: cart.coupon || null };
     try{
       const res = await fetch('/api/orders', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) }).then(r=>r.json());
-      setProcessing(false);
-      if(!res.ok) return alert('Order failed: ' + (res.error||'unknown'));
-      // simple payment placeholder: in production you'd integrate gateway here
-      alert('Payment successful (demo). Order: ' + res.orderId);
+  setProcessing(false);
+  if(!res.ok) return toast?.push?.({ message: 'Order failed: ' + (res.error||'unknown'), type: 'error' });
+  // simple payment placeholder: in production you'd integrate gateway here
+  toast?.push?.({ message: 'Payment successful (demo). Order: ' + res.orderId, type: 'success' });
 
       // open a printable invoice window
   const totalAfterDiscount = subtotal - (cart.coupon?.discount || 0);
@@ -29,7 +31,7 @@ export default function Checkout(){
 
       clear();
       window.location.href = '/';
-    }catch(e){ setProcessing(false); alert('Network error: ' + (e.message||e)); }
+  }catch(e){ setProcessing(false); toast?.push?.({ message: 'Network error: ' + (e.message||e), type: 'error' }); }
   };
 
   return (

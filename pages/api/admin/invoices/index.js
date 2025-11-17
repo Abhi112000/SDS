@@ -29,6 +29,22 @@ export default async function handler(req, res){
       return res.status(201).json({ invoice: doc });
     }catch(e){ return res.status(500).json({ error: e.message }); }
   }
-  res.setHeader('Allow', 'GET,POST');
+  if(req.method === 'PUT'){
+    try{
+      const body = req.body || {};
+      const { id, invoiceId } = body;
+      if(!id && !invoiceId) return res.status(400).json({ error: 'Missing invoice id' });
+      // build update object - allow a safe subset of fields to be updated
+      const allowed = ['status','paidAmount','balance','payload','subtotal','discount','shipping','tax','total'];
+      const update = {};
+      for(const k of allowed){ if(typeof body[k] !== 'undefined') update[k] = body[k]; }
+      if(Object.keys(update).length === 0) return res.status(400).json({ error: 'No updatable fields provided' });
+      const query = id ? { _id: id } : { invoiceId };
+      const updated = await Invoice.findOneAndUpdate(query, { $set: update }, { new: true }).lean();
+      if(!updated) return res.status(404).json({ error: 'Invoice not found' });
+      return res.status(200).json({ invoice: updated });
+    }catch(e){ return res.status(500).json({ error: e.message }); }
+  }
+  res.setHeader('Allow', 'GET,POST,PUT');
   res.status(405).end('Method Not Allowed');
 }

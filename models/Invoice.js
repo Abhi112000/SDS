@@ -10,6 +10,10 @@ const InvoiceSchema = new mongoose.Schema({
   shipping: Number,
   tax: Number,
   total: Number,
+  // payment/status fields
+  status: { type: String, enum: ['unpaid','paid','partially-paid'], default: 'unpaid' },
+  paidAmount: { type: Number, default: 0 },
+  balance: { type: Number, default: 0 },
   createdBy: String,
   createdAt: { type: Date, default: Date.now }
 });
