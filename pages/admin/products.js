@@ -9,6 +9,7 @@ export default function AdminProducts({ initial }){
   const toast = useToast();
   const [form, setForm] = useState({ title: '', price: '', sku: '', category: '', stock: 9999, description: '', images: [] });
   const [editingId, setEditingId] = useState(null);
+  const [uploadProgress, setUploadProgress] = useState({});
 
   async function load(){
   const res = await fetch('/api/products', { credentials: 'include' });
@@ -18,7 +19,7 @@ export default function AdminProducts({ initial }){
 
   useEffect(()=>{ load() },[]);
 
-  async function uploadImage(file){
+  async function uploadImage(file, onProgress){
     // Server-side upload proxy: send a dataUrl to /api/admin/upload-image
     try{
       // If a File is provided, convert to data URL
@@ -32,14 +33,27 @@ export default function AdminProducts({ initial }){
           r.readAsDataURL(file);
         });
       }
-      const r = await fetch('/api/admin/upload-image', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ dataUrl }) });
-      const j = await r.json();
-      if(!r.ok || !j?.url){
-        console.error('server upload failed', j);
-        toast?.push?.({ message: 'Upload failed: ' + (j?.error?.message || j?.error || JSON.stringify(j)), type: 'error' });
-        return null;
-      }
-      return j.url;
+      // Use XHR so we can expose upload progress
+      const url = await new Promise((resolve, reject) => {
+        try{
+          const xhr = new XMLHttpRequest();
+          xhr.open('POST', '/api/admin/upload-image');
+          xhr.setRequestHeader('Content-Type', 'application/json');
+          xhr.upload.onprogress = (e) => {
+            if(e.lengthComputable && typeof onProgress === 'function') onProgress(Math.round((e.loaded / e.total) * 100));
+          };
+          xhr.onload = () => {
+            try{
+              const json = JSON.parse(xhr.responseText || '{}');
+              if(xhr.status >= 200 && xhr.status < 300 && json?.url) resolve(json.url);
+              else reject(json || new Error('Upload failed'));
+            }catch(err){ reject(err); }
+          };
+          xhr.onerror = () => reject(new Error('Network error'));
+          xhr.send(JSON.stringify({ dataUrl }));
+        }catch(err){ reject(err); }
+      });
+      return url;
     }catch(e){
       console.error('uploadImage error', e);
       toast?.push?.({ message: 'Upload error: ' + (e?.message||String(e)), type: 'error' });
@@ -118,10 +132,22 @@ export default function AdminProducts({ initial }){
                     try{
                       const resizedBlob = await resizeImage(file, 1200, 1200, 0.8);
                       // send resized image to server-side upload proxy which will forward to Cloudinary
+                      const tmpId = Date.now() + '-' + Math.random().toString(36).slice(2,8);
+                      const previewUrl = URL.createObjectURL(resizedBlob);
+                      // show placeholder in UI with progress
+                      setForm(prev=>({ ...prev, images: [...(prev.images||[]), { _tmp: true, _tmpId: tmpId, src: previewUrl }] }));
+                      setUploadProgress(prev=>({ ...prev, [tmpId]: 0 }));
                       const f = new File([resizedBlob], file.name || 'upload.jpg', { type: resizedBlob.type });
-                      const url = await uploadImage(f);
-                      if(url) added.push(url);
-                      else {
+                      const url = await uploadImage(f, (pct)=> setUploadProgress(prev=>({ ...prev, [tmpId]: pct })));
+                      if(url) {
+                        // replace placeholder with actual url
+                        setForm(prev=>({ ...prev, images: prev.images.map(img => (img && img._tmpId === tmpId) ? url : img) }));
+                        // cleanup preview object URL
+                        URL.revokeObjectURL(previewUrl);
+                        // remove progress entry
+                        setUploadProgress(prev => { const n = { ...prev }; delete n[tmpId]; return n; });
+                        added.push(url);
+                      } else {
                         // fallback: keep inline data URL so the admin can still see the image
                         const reader = new FileReader();
                         const dataUrl = await new Promise((res,rej)=>{
@@ -129,18 +155,28 @@ export default function AdminProducts({ initial }){
                           reader.onerror = rej;
                           reader.readAsDataURL(resizedBlob);
                         });
+                        // replace placeholder with dataUrl
+                        setForm(prev=>({ ...prev, images: prev.images.map(img => (img && img._tmpId === tmpId) ? dataUrl : img) }));
+                        setUploadProgress(prev => { const n = { ...prev }; delete n[tmpId]; return n; });
                         added.push(dataUrl);
                         console.warn('uploadImage returned no url for', file.name);
                       }
                     }catch(err){ console.error('image resize/upload failed', err); toast?.push?.({ message: 'Failed to process image: ' + (err?.message||''), type: 'error' }); }
                   }
-                  if(added.length) setForm(prev=>({ ...prev, images: [...(prev.images||[]), ...added] }));
+                  // placeholders were already inserted and replaced — no extra append needed
                   e.currentTarget.value = '';
                 }} />
                 <div className="flex gap-2 mt-2 items-center">
                   {form.images.map((u,i)=> (
                     <div key={i} className="relative">
-                      <img src={u} className="w-16 h-16 object-cover rounded" />
+                      <img src={typeof u === 'string' ? u : u.src} className="w-16 h-16 object-cover rounded" />
+                      {typeof u !== 'string' && u._tmpId && uploadProgress[u._tmpId] != null ? (
+                        <div className="absolute inset-0 bg-black bg-opacity-30 flex items-end">
+                          <div className="w-full h-2 bg-gray-300">
+                            <div style={{ width: uploadProgress[u._tmpId] + '%' }} className="h-2 bg-green-500" />
+                          </div>
+                        </div>
+                      ) : null}
                       <button type="button" onClick={() => setForm(prev=>({ ...prev, images: prev.images.filter((_,idx)=> idx !== i) }))} className="absolute -top-2 -right-2 bg-red-600 text-white rounded-full w-5 h-5 text-xs leading-5">×</button>
                     </div>
                   ))}

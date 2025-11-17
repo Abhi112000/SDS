@@ -40,3 +40,41 @@ If the app works locally but shows a 500 or the Admin panel is unavailable after
    - Use `http://localhost:3000/api/debug/env` and `http://localhost:3000/api/debug/db` to confirm local configuration.
 
 If you'd like, I can add an optional quick-start script that verifies environment variables and prints guidance before starting the dev server.
+
+## Cloudinary (image uploads)
+
+This project supports two upload flows for product images:
+
+- Server-side signed uploads (recommended): the app posts resized images to `/api/admin/upload-image` and the server forwards them to Cloudinary using `CLOUDINARY_API_KEY` / `CLOUDINARY_API_SECRET`.
+- Unsigned client uploads (optional): set an unsigned preset and use `NEXT_PUBLIC_CLOUDINARY_UPLOAD_PRESET`.
+
+To enable server-side signed uploads (recommended):
+
+1. Create a Cloudinary account (https://cloudinary.com/) and go to Dashboard → Account Details to get:
+   - Cloud name
+   - API Key
+   - API Secret
+2. In your local `.env.local` add (copy from `.env.local.template`):
+
+```bash
+CLOUDINARY_CLOUD_NAME=your_cloud_name
+CLOUDINARY_API_KEY=your_api_key
+CLOUDINARY_API_SECRET=your_api_secret
+```
+
+3. Restart the dev server (`npm run dev`). The admin upload form will POST resized images to `/api/admin/upload-image` and the server will return the hosted `secure_url` on success.
+
+Unsigned client uploads (less secure):
+
+1. In Cloudinary Dashboard → Settings → Uploads, create an upload preset and enable "Unsigned".
+2. Add these to `.env.local` (or in Vercel project settings for production):
+
+```bash
+NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME=your_cloud_name
+NEXT_PUBLIC_CLOUDINARY_UPLOAD_PRESET=your_unsigned_preset
+```
+
+Notes and tips:
+- Never commit `.env.local` with secrets. Use the `.env.local.template` in the repo as the canonical template and set real values in your environment or Vercel settings.
+- On Vercel, set `CLOUDINARY_API_KEY` and `CLOUDINARY_API_SECRET` as Production env vars (do not expose the secret to the client).
+- If you prefer I can add a short admin-only test page to validate uploads; I already added one under `/admin/upload-test`.
