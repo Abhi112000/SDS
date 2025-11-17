@@ -1,0 +1,152 @@
+import Link from 'next/link';
+import { useEffect, useState, useContext, useRef } from 'react';
+import useFocusTrap from '../hooks/useFocusTrap';
+import { signOut, useSession } from 'next-auth/react';
+import { CartContext } from './CartContext';
+
+export default function Header(){
+  const { data: session } = useSession();
+  const { cart, remove, subtotal } = useContext(CartContext);
+  const [cartCount, setCartCount] = useState(0);
+  const [showCartPreview, setShowCartPreview] = useState(false);
+  const cartRef = useRef();
+  const [mobileOpen, setMobileOpen] = useState(false);
+  const mobileMenuRef = useRef();
+  const [unread, setUnread] = useState(0);
+  const MENU_ID = 'main-navigation';
+  const mobileToggleRef = useRef();
+  const prevMobileOpenRef = useRef(mobileOpen);
+
+  useEffect(()=>{
+    // set initial cart count from localStorage (persisted cart)
+    try{
+      const raw = localStorage.getItem('sd_cart');
+      if(raw){ const c = JSON.parse(raw); setCartCount((c.items||[]).reduce((s,i)=>s + (i.qty||0), 0)); }
+    }catch(e){}
+
+    const onUpdate = ()=>{
+      try{ const raw = localStorage.getItem('sd_cart'); if(raw){ const c=JSON.parse(raw); setCartCount((c.items||[]).reduce((s,i)=>s + (i.qty||0),0)); } }
+      catch(e){}
+    };
+
+    window.addEventListener('sd_cart_updated', onUpdate);
+    window.addEventListener('storage', onUpdate);
+    return ()=>{ window.removeEventListener('sd_cart_updated', onUpdate); window.removeEventListener('storage', onUpdate); };
+  },[]);
+
+  useEffect(()=>{ setCartCount(cart?.items?.reduce((s,i)=>s + (i.qty||0),0) || 0); },[cart]);
+
+  // close cart preview when clicking outside
+  useEffect(()=>{
+    function onDoc(e){ if(cartRef.current && !cartRef.current.contains(e.target)){ setShowCartPreview(false); } if(mobileOpen && mobileMenuRef.current && !mobileMenuRef.current.contains(e.target) && !e.target.closest('[data-mobile-toggle]')){ setMobileOpen(false); } }
+    function onKey(e){ if(e.key === 'Escape'){ setShowCartPreview(false); setMobileOpen(false); } }
+    if(showCartPreview || mobileOpen){ document.addEventListener('click', onDoc); document.addEventListener('keydown', onKey); }
+    return ()=>{ document.removeEventListener('click', onDoc); document.removeEventListener('keydown', onKey); };
+  },[showCartPreview, mobileOpen]);
+
+  // Use reusable focus trap hook to keep focus within the mobile menu while open
+  useFocusTrap(mobileMenuRef, mobileOpen, { initialFocus: true });
+
+  // Restore focus to the mobile toggle button when the menu closes
+  useEffect(()=>{
+    if(prevMobileOpenRef.current && !mobileOpen){
+      try{ mobileToggleRef.current?.focus(); }catch(e){}
+    }
+    prevMobileOpenRef.current = mobileOpen;
+  },[mobileOpen]);
+
+  useEffect(()=>{
+    let mounted = true;
+    if(!session?.user) return;
+    fetch('/api/messages')
+      .then(r=>r.json()).then(data=>{ if(mounted){ setUnread((data||[]).filter(m=>!m.read).length); } })
+      .catch(()=>{});
+    return ()=>{ mounted=false };
+  },[session]);
+
+  return (
+    <header className="sticky top-0 z-50 bg-white/60 backdrop-blur-sm border-b border-gray-100">
+      <div className="max-w-7xl mx-auto px-4 py-3 flex items-center justify-between">
+        <nav role="navigation" aria-label="Main navigation" className="flex items-center gap-3">
+          <Link href="/" className="flex items-center gap-3" aria-label="Go to homepage">
+            <img src="/images/logo.jpeg" alt="Shree Durga Stationery logo" className="h-12 md:h-16 lg:h-20 w-auto object-contain" />
+            <div className="text-xl font-extrabold tracking-tight">
+              Shree Durga
+              <span className="text-sm block font-medium text-slate-600">Stationery</span>
+            </div>
+          </Link>
+        </nav>
+
+        <div className="flex items-center gap-4">
+          <button ref={mobileToggleRef} data-mobile-toggle aria-expanded={mobileOpen} aria-controls={MENU_ID} onClick={()=>setMobileOpen(s=>!s)} className="sm:hidden px-2 py-1 border rounded" aria-label={mobileOpen? 'Close menu' : 'Open menu'}>{mobileOpen? 'Close' : 'Menu'}</button>
+
+          <nav id={MENU_ID} ref={mobileMenuRef} aria-hidden={!mobileOpen} className={`${mobileOpen? 'block':'hidden'} sm:flex items-center gap-3`} aria-label="Primary">
+            <Link href="/shop" className="text-slate-700 hover:underline" aria-label="Shop">Shop</Link>
+            <Link href="/contact" className="text-slate-700 hover:underline" aria-label="Contact">Contact</Link>
+            {session && session.user?.role !== 'admin' && <Link href="/messages" className="text-slate-700 hover:underline" aria-label="Messages">Messages</Link>}
+          </nav>
+
+          <div className="relative" ref={cartRef}>
+            <button onClick={()=>setShowCartPreview(s=>!s)} className="text-slate-700 hover:underline relative px-2 py-1 flex items-center gap-2" aria-haspopup="dialog" aria-label="Open cart">
+              <span>Cart</span>
+              {cartCount? <span className="ml-1 inline-block bg-red-500 text-white text-xs px-2 py-0.5 rounded-full">{cartCount}</span>:null}
+            </button>
+
+            {showCartPreview && (
+              <div role="dialog" aria-label="Cart preview" aria-modal="false" className="absolute right-0 mt-2 w-72 bg-white border rounded shadow-lg z-50">
+                <div className="p-3">
+                  <div className="font-semibold">Cart ({cartCount})</div>
+                  {cart.items.length===0 ? (
+                    <div className="text-sm text-muted mt-2">Your cart is empty</div>
+                  ) : (
+                    <ul className="mt-2 space-y-2 max-h-56 overflow-auto">
+                      {cart.items.map(it=> (
+                        <li key={it.productId} className="flex justify-between items-start gap-2">
+                          <div className="flex items-start gap-2">
+                            <img src={it.image||'/images/sample1.svg'} alt={it.title} className="w-12 h-12 object-contain rounded" />
+                            <div>
+                              <div className="text-sm font-medium">{it.title}</div>
+                              <div className="text-xs text-gray-500">₹{it.price} × {it.qty}</div>
+                            </div>
+                          </div>
+                          <div className="flex flex-col items-end gap-2">
+                            <button onClick={()=>remove(it.productId)} className="text-sm text-red-600" aria-label={`Remove ${it.title}`}>Remove</button>
+                          </div>
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+
+                  <div className="mt-3 border-t pt-3 flex items-center justify-between">
+                    <div>
+                      <div className="text-sm text-gray-500">Subtotal</div>
+                      <div className="font-semibold">₹{subtotal}</div>
+                      {cart.coupon && <div className="text-sm text-gray-500">Coupon {cart.coupon.code}: -₹{cart.coupon.discount}</div>}
+                      {cart.coupon && <div className="font-bold">Total: ₹{subtotal - (cart.coupon?.discount || 0)}</div>}
+                    </div>
+                    <div className="flex flex-col items-end">
+                      <Link href="/cart" className="px-3 py-2 btn-primary rounded text-white" aria-label="View cart">View Cart</Link>
+                      <Link href="/checkout" className="mt-2 px-3 py-1 btn-ghost rounded" aria-label="Proceed to checkout">Checkout</Link>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
+
+          {session ? (
+            <>
+              {session.user?.role === 'admin' && (
+                <Link href="/admin" className="px-3 py-1 bg-slate-100 rounded text-slate-700">Admin{unread?` (${unread})`:''}</Link>
+              )}
+              <Link href="/dashboard" className="px-3 py-1 bg-slate-50 rounded text-slate-700">Profile</Link>
+              <button onClick={() => signOut()} className="ml-2 px-3 py-1 bg-slate-50 rounded text-slate-700">Logout</button>
+            </>
+          ) : (
+            <Link href="/login" className="px-3 py-1 bg-slate-50 rounded text-slate-700">Login</Link>
+          )}
+        </div>
+      </div>
+    </header>
+  );
+}

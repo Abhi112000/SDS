@@ -1,0 +1,17 @@
+{
+  "/_app": "pages/_app.js",
+  "/_error": "pages/_error.js",
+  "/_document": "pages/_document.js",
+  "/api/orders": "pages/api/orders.js",
+  "/api/messages": "pages/api/messages.js",
+  "/api/admin/guest-orders": "pages/api/admin/guest-orders.js",
+  "/api/admin/analytics": "pages/api/admin/analytics.js",
+  "/api/admin/users": "pages/api/admin/users.js",
+  "/api/products": "pages/api/products.js",
+  "/api/auth/[...nextauth]": "pages/api/auth/[...nextauth].js",
+  "/api/admin/invoices": "pages/api/admin/invoices.js",
+  "/api/admin/invoice-settings": "pages/api/admin/invoice-settings.js",
+  "/shop": "pages/shop.js",
+  "/admin": "pages/admin.js",
+  "/contact": "pages/contact.js"
+}
