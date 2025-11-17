@@ -1,1 +1,9 @@
 node_modules
+
+# Ignore Next.js build output and local env files
+.next
+.env
+.env.local
+.env.*.local
+.env.*
+.env_archived
