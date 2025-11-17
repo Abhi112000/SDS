@@ -1,0 +1,1 @@
+{"version":1,"functions":{"/api/auth/[...nextauth]":{},"/admin/coupons":{},"/admin":{},"/admin/messages":{},"/admin/orders/[id]":{},"/admin/products":{},"/dashboard":{},"/":{},"/login":{},"/messages":{},"/orders":{},"/product/[id]":{},"/profile":{},"/shop":{}}}
