@@ -15,22 +15,28 @@ export const authOptions = {
         password: { label: "Password", type: "password" },
       },
       async authorize(credentials) {
-        await dbConnect();
+        try {
+          await dbConnect();
 
-        const user = await User.findOne({ email: credentials.email });
-        if (!user) throw new Error("No user found with that email.");
+          const user = await User.findOne({ email: credentials.email });
+          if (!user) throw new Error("No user found with that email.");
 
-        // The registration API stores the hashed password in `passwordHash`
-        const hash = user.passwordHash || user.password;
-        const isValid = await bcrypt.compare(credentials.password, hash || '');
-        if (!isValid) throw new Error("Invalid password.");
+          // The registration API stores the hashed password in `passwordHash`
+          const hash = user.passwordHash || user.password;
+          const isValid = await bcrypt.compare(credentials.password, hash || '');
+          if (!isValid) throw new Error("Invalid password.");
 
-        return {
-          id: user._id.toString(),
-          name: user.name,
-          email: user.email,
-          role: user.role || "user",
-        };
+          return {
+            id: user._id.toString(),
+            name: user.name,
+            email: user.email,
+            role: user.role || "user",
+          };
+        } catch (e) {
+          // helpful server-side logging for Vercel logs
+          try { console.error('[auth] credentials authorize error', e?.message || e); } catch (__) {}
+          throw e;
+        }
       },
     }),
 

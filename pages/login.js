@@ -17,8 +17,12 @@ export default function Login({ providers }) {
             const email = e.target.email.value;
             const password = e.target.password.value;
             const result = await signIn("credentials", { email, password, redirect: false });
+            // diagnostic logging (helps on Vercel) and better messaging for server errors
+            try { console.log('signIn result', result); } catch (e) {}
             if (result?.error) {
               toast.push({ message: 'Login failed: ' + result.error, type: 'error' });
+            } else if (result?.status && result.status >= 500) {
+              toast.push({ message: `Server error during login (status ${result.status}). Check server logs.`, type: 'error' });
             } else {
               toast.push({ message: 'Login successful! Redirecting...', type: 'success' });
               router.push('/profile');
