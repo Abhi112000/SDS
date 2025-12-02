@@ -1,4 +1,5 @@
 import { getSession } from 'next-auth/react';
+import { getToken } from 'next-auth/jwt';
 import dbConnect from '@/lib/mongodb';
 import crypto from 'crypto';
 
@@ -13,7 +14,22 @@ export default async function handler(req, res){
   if(req.method !== 'POST') return res.status(405).end();
 
   // require auth (session cookie)
-  const session = await getSession({ req });
+  // Resolve session using getSession; keep a silent getToken fallback for JWT sessions
+  let session = await getSession({ req });
+
+  // Fallback: if getSession didn't resolve but a valid JWT token exists (next-auth jwt strategy), accept that.
+  if(!session){
+    try{
+      const token = await getToken({ req, secret: process.env.NEXTAUTH_SECRET });
+      if(token && token.role === 'admin'){
+        // create a minimal session-like object for downstream checks
+        session = { user: { id: token.sub || token?.sub, role: token.role } };
+      }
+    }catch(e){
+      console.error('upload-image getToken error', e);
+    }
+  }
+
   if(!session || session.user?.role !== 'admin') return res.status(403).json({ error: 'admin required' });
 
   const { dataUrl, uploadPreset, folder } = req.body || {};

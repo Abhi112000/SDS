@@ -58,20 +58,33 @@ export const authOptions = {
 
   callbacks: {
     async jwt({ token, user }) {
-      if (user) {
-        token.role = user.role || "user";
-        token.sub = user.id || token.sub;
-      }
-      if (process.env.NODE_ENV !== 'production') {
-        try{ console.log('next-auth jwt callback - token:', { sub: token.sub, role: token.role, user: !!user }); }catch(e){}
+      try{
+        if (user) {
+          // Keep values primitive and serializable
+          token.role = user.role || "user";
+          token.sub = user.id || token.sub;
+        }
+        if (process.env.NODE_ENV !== 'production') {
+          console.log('next-auth jwt callback - token:', { sub: token.sub, role: token.role, user: !!user });
+        }
+      }catch(err){
+        console.error('[next-auth] jwt callback error', err && (err.stack || err.message || err));
       }
       return token;
     },
     async session({ session, token }) {
-      session.user.role = token.role;
-      session.user.id = token.sub || session.user.id;
-      if (process.env.NODE_ENV !== 'production') {
-        try{ console.log('next-auth session callback - session user:', { id: session.user.id, role: session.user.role }); }catch(e){}
+      try{
+        // guard against unexpected shapes
+        if(!session) session = {};
+        if(!session.user) session.user = {};
+        // copy only primitive values
+        session.user.role = token?.role || session.user.role || 'user';
+        session.user.id = token?.sub || session.user.id;
+        if (process.env.NODE_ENV !== 'production') {
+          console.log('next-auth session callback - session user:', { id: session.user.id, role: session.user.role });
+        }
+      }catch(err){
+        console.error('[next-auth] session callback error', err && (err.stack || err.message || err));
       }
       return session;
     },

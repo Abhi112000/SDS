@@ -4,23 +4,70 @@ import Product from '../../models/Product';
 import { useEffect, useState } from 'react';
 import { useToast } from '@/components/Toast';
 
+// client-side resize helper — returns a Blob
+async function resizeImage(file, maxWidth = 1200, maxHeight = 1200, quality = 0.8){
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    const url = URL.createObjectURL(file);
+    img.onload = () => {
+      let { width, height } = img;
+      const ratio = Math.min(maxWidth / width, maxHeight / height, 1);
+      const w = Math.round(width * ratio);
+      const h = Math.round(height * ratio);
+      const canvas = document.createElement('canvas');
+      canvas.width = w;
+      canvas.height = h;
+      const ctx = canvas.getContext('2d');
+      ctx.drawImage(img, 0, 0, w, h);
+      canvas.toBlob((blob) => {
+        URL.revokeObjectURL(url);
+        if(blob) resolve(blob);
+        else reject(new Error('Canvas toBlob failed'));
+      }, 'image/jpeg', quality);
+    };
+    img.onerror = (err) => { URL.revokeObjectURL(url); reject(err); };
+    img.src = url;
+  });
+}
+
+function blobToDataURL(blob){
+  return new Promise((res, rej) => {
+    const r = new FileReader();
+    r.onload = () => res(r.result);
+    r.onerror = rej;
+    r.readAsDataURL(blob);
+  });
+}
+
+// fetch categories to populate dropdown
+
 export default function AdminProducts({ initial }){
   const [products, setProducts] = useState(initial || []);
+  const [categories, setCategories] = useState([]);
   const toast = useToast();
-  const [form, setForm] = useState({ title: '', price: '', sku: '', category: '', stock: 9999, description: '', images: [] });
+  const [updatingFeatured, setUpdatingFeatured] = useState({});
+  const [form, setForm] = useState({ title: '', price: '', sku: '', category: '', stock: 9999, description: '', images: [], featuredImage: '' });
   const [editingId, setEditingId] = useState(null);
   const [uploadProgress, setUploadProgress] = useState({});
 
   async function load(){
   const res = await fetch('/api/products', { credentials: 'include' });
     const data = await res.json();
-    setProducts(data);
+    // setProducts(data);
+    setProducts(data.products || []);
+
+  }
+
+  async function loadCategories(){
+    try{ const r = await fetch('/api/admin/categories'); const c = await r.json(); setCategories(c || []); }catch(e){ console.warn('load categories failed', e); }
   }
 
   useEffect(()=>{ load() },[]);
+  useEffect(()=>{ loadCategories(); },[]);
 
   async function uploadImage(file, onProgress){
     // Server-side upload proxy: send a dataUrl to /api/admin/upload-image
+    // Accept optional opts object as third param via `onProgress` if desired
     try{
       // If a File is provided, convert to data URL
       let dataUrl;
@@ -33,77 +80,54 @@ export default function AdminProducts({ initial }){
           r.readAsDataURL(file);
         });
       }
-      // Use XHR so we can expose upload progress
-      const url = await new Promise((resolve, reject) => {
-        try{
-          const xhr = new XMLHttpRequest();
-          xhr.open('POST', '/api/admin/upload-image');
-          xhr.setRequestHeader('Content-Type', 'application/json');
-          xhr.upload.onprogress = (e) => {
-            if(e.lengthComputable && typeof onProgress === 'function') onProgress(Math.round((e.loaded / e.total) * 100));
-          };
-          xhr.onload = () => {
-            try{
-              const json = JSON.parse(xhr.responseText || '{}');
-              if(xhr.status >= 200 && xhr.status < 300 && json?.url) resolve(json.url);
-              else reject(json || new Error('Upload failed'));
-            }catch(err){ reject(err); }
-          };
-          xhr.onerror = () => reject(new Error('Network error'));
-          xhr.send(JSON.stringify({ dataUrl }));
-        }catch(err){ reject(err); }
-      });
-      return url;
+      // Use fetch with credentials so cookies (next-auth) are sent. Note: fetch doesn't provide upload progress.
+      try{
+        if(typeof onProgress === 'function') onProgress(0);
+        const res = await fetch('/api/admin/upload-image', {
+          method: 'POST',
+          credentials: 'include',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ dataUrl })
+        });
+        const json = await res.json().catch(()=>({}));
+        if(!res.ok) {
+          const msg = (json && (json.error || (json.details && JSON.stringify(json.details)) || JSON.stringify(json))) || 'Upload failed';
+          throw new Error(msg);
+        }
+        if(typeof onProgress === 'function') onProgress(100);
+        return json;
+      }catch(err){ throw err; }
     }catch(e){
       console.error('uploadImage error', e);
-      toast?.push?.({ message: 'Upload error: ' + (e?.message||String(e)), type: 'error' });
+      const msg = e?.message || (typeof e === 'string' ? e : JSON.stringify(e));
+      toast?.push?.({ message: 'Upload error: ' + msg, type: 'error' });
       return null;
     }
   }
-
-  // client-side resize helper — returns a Blob
-  async function resizeImage(file, maxWidth = 1200, maxHeight = 1200, quality = 0.8){
-    return new Promise((resolve, reject) => {
-      const img = new Image();
-      const url = URL.createObjectURL(file);
-      img.onload = () => {
-        let { width, height } = img;
-        let targetW = width;
-        let targetH = height;
-        if(width > maxWidth || height > maxHeight){
-          const ratio = Math.min(maxWidth / width, maxHeight / height);
-          targetW = Math.round(width * ratio);
-          targetH = Math.round(height * ratio);
-        }
-        const canvas = document.createElement('canvas');
-        canvas.width = targetW;
-        canvas.height = targetH;
-        const ctx = canvas.getContext('2d');
-        ctx.fillStyle = '#fff';
-        ctx.fillRect(0,0,canvas.width,canvas.height);
-        ctx.drawImage(img, 0, 0, targetW, targetH);
-        canvas.toBlob((blob) => {
-          URL.revokeObjectURL(url);
-          if(!blob) return reject(new Error('Canvas toBlob returned null'));
-          resolve(blob);
-        }, 'image/jpeg', quality);
-      };
-      img.onerror = (e) => { URL.revokeObjectURL(url); reject(e); };
-      img.src = url;
-    });
-  }
-
+  
   async function handleCreate(e){
     e.preventDefault();
-  const payload = { ...form, price: Number(form.price), originalPrice: form.originalPrice ? Number(form.originalPrice) : undefined, onSale: !!form.onSale, stock: Number(form.stock) };
-  const url = editingId ? `/api/products?id=${editingId}` : '/api/products';
-  const method = editingId ? 'PUT' : 'POST';
-  const res = await fetch(url, { method, credentials: 'include', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
-  if(!res.ok) return toast?.push?.({ message: 'Failed', type: 'error' });
-    setForm({ title: '', price: '', sku: '', category: '', stock: 9999, description: '', images: [] });
-  setEditingId(null);
-    load();
-  }
+    // ensure SKU
+    let finalSku = form.sku && form.sku.trim() ? form.sku.trim() : '';
+    if(!finalSku){
+      const slug = (form.title + ' ' + (form.category||'')).toLowerCase().replace(/[^a-z0-9]+/g,'-').replace(/(^-|-$)/g,'');
+      finalSku = (slug || 'item') + '-' + String(Date.now()).slice(-5);
+    }
+  const featuredUrl = form.featuredImage && typeof form.featuredImage === 'object' ? (form.featuredImage.url || '') : form.featuredImage;
+  const firstImg = (form.images && form.images[0]) ? (typeof form.images[0] === 'object' ? (form.images[0].url || '') : form.images[0]) : '';
+  const payload = { ...form, price: Number(form.price || 0), originalPrice: form.originalPrice ? Number(form.originalPrice) : undefined, onSale: !!form.onSale, stock: Number(form.stock || 0), sku: finalSku, image: featuredUrl || firstImg || '' };
+    const url = editingId ? `/api/products?id=${editingId}` : '/api/products';
+    const method = editingId ? 'PUT' : 'POST';
+    try{
+      const res = await fetch(url, { method, credentials: 'include', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
+      const data = await res.json();
+      if(!res.ok) { toast?.push?.({ message: data?.error || 'Failed to save product', type: 'error' }); return; }
+      toast?.push?.({ message: editingId ? 'Product updated' : 'Product created', type: 'success' });
+      setForm({ title: '', price: '', sku: '', category: '', stock: 9999, description: '', images: [], featuredImage: '' });
+      setEditingId(null);
+      load();
+    }catch(err){ toast?.push?.({ message: 'Save failed: ' + (err.message||''), type: 'error' }); }
+    }
 
   return (
     <div className="p-6">
@@ -119,68 +143,74 @@ export default function AdminProducts({ initial }){
             <input value={form.originalPrice || ''} onChange={e=>setForm({...form, originalPrice: e.target.value})} placeholder="Original price (optional)" className="w-full p-2 border mb-2" />
             <div className="mb-2"><label><input type="checkbox" checked={!!form.onSale} onChange={e=>setForm({...form, onSale: e.target.checked})} /> On sale</label></div>
             <input value={form.sku} onChange={e=>setForm({...form, sku: e.target.value})} placeholder="SKU" className="w-full p-2 border mb-2" />
-            <input value={form.category} onChange={e=>setForm({...form, category: e.target.value})} placeholder="Category" className="w-full p-2 border mb-2" />
+            <select value={form.category} onChange={e=>setForm({...form, category: e.target.value})} className="w-full p-2 border mb-2">
+              <option value="">Select category</option>
+              {categories.map(c => (<option key={c._id} value={c.name}>{c.name}</option>))}
+            </select>
             <input value={form.stock} onChange={e=>setForm({...form, stock: e.target.value})} placeholder="Stock" className="w-full p-2 border mb-2" />
             <textarea value={form.description} onChange={e=>setForm({...form, description: e.target.value})} placeholder="Description" className="w-full p-2 border mb-2" />
             <div className="mb-2">
-              <label className="block mb-1">Images</label>
-                <input type="file" accept="image/*" multiple onChange={async e=>{
-                  const files = Array.from(e.target.files || []);
-                  if(files.length === 0) return;
-                  const added = [];
-                  for(const file of files){
-                    try{
-                      const resizedBlob = await resizeImage(file, 1200, 1200, 0.8);
-                      // send resized image to server-side upload proxy which will forward to Cloudinary
-                      const tmpId = Date.now() + '-' + Math.random().toString(36).slice(2,8);
-                      const previewUrl = URL.createObjectURL(resizedBlob);
-                      // show placeholder in UI with progress
-                      setForm(prev=>({ ...prev, images: [...(prev.images||[]), { _tmp: true, _tmpId: tmpId, src: previewUrl }] }));
-                      setUploadProgress(prev=>({ ...prev, [tmpId]: 0 }));
-                      const f = new File([resizedBlob], file.name || 'upload.jpg', { type: resizedBlob.type });
-                      const url = await uploadImage(f, (pct)=> setUploadProgress(prev=>({ ...prev, [tmpId]: pct })));
-                      if(url) {
-                        // replace placeholder with actual url
-                        setForm(prev=>({ ...prev, images: prev.images.map(img => (img && img._tmpId === tmpId) ? url : img) }));
-                        // cleanup preview object URL
-                        URL.revokeObjectURL(previewUrl);
-                        // remove progress entry
-                        setUploadProgress(prev => { const n = { ...prev }; delete n[tmpId]; return n; });
-                        added.push(url);
-                      } else {
-                        // fallback: keep inline data URL so the admin can still see the image
-                        const reader = new FileReader();
-                        const dataUrl = await new Promise((res,rej)=>{
-                          reader.onload = () => res(reader.result);
-                          reader.onerror = rej;
-                          reader.readAsDataURL(resizedBlob);
-                        });
-                        // replace placeholder with dataUrl
-                        setForm(prev=>({ ...prev, images: prev.images.map(img => (img && img._tmpId === tmpId) ? dataUrl : img) }));
-                        setUploadProgress(prev => { const n = { ...prev }; delete n[tmpId]; return n; });
-                        added.push(dataUrl);
-                        console.warn('uploadImage returned no url for', file.name);
-                      }
-                    }catch(err){ console.error('image resize/upload failed', err); toast?.push?.({ message: 'Failed to process image: ' + (err?.message||''), type: 'error' }); }
-                  }
-                  // placeholders were already inserted and replaced — no extra append needed
-                  e.currentTarget.value = '';
+              <label className="block mb-1">Featured image (main)</label>
+              <div className="flex items-center gap-3 mb-2">
+                <input type="file" accept="image/*" onChange={async e=>{
+                  const f = e.target.files && e.target.files[0];
+                  if(!f) return;
+                  const tmpId = Date.now() + '-' + Math.random().toString(36).slice(2,8);
+                  try{
+                    toast?.push?.({ message: 'Uploading featured image...', type: 'info' });
+                    setUploadProgress(prev=>({ ...prev, [tmpId]: 0 }));
+                    // resize to a reasonable max for original upload
+                    const resized = await resizeImage(f, 2000, 2000, 0.9);
+                    const fileToUpload = new File([resized], f.name || 'img.jpg', { type: resized.type });
+                    const body = await uploadImage(fileToUpload, pct => setUploadProgress(prev=>({ ...prev, [tmpId]: pct })));
+                    if(body){
+                      const public_id = body.raw?.public_id || body.public_id;
+                      const url = body.secure_url || body.url;
+                      setForm(prev => ({ ...prev, featuredImage: { public_id, url } }));
+                      toast?.push?.({ message: 'Featured image uploaded', type: 'success' });
+                    }
+                  }catch(err){ console.error('featured image process failed', err); toast?.push?.({ message: 'Failed to process featured image: ' + (err?.message||''), type: 'error' }); }
+                  setUploadProgress(prev => { const n = { ...prev }; delete n[tmpId]; return n; });
+                  // clear input value so same file can be picked again if needed
+                  if(e.currentTarget) e.currentTarget.value = '';
                 }} />
-                <div className="flex gap-2 mt-2 items-center">
-                  {form.images.map((u,i)=> (
-                    <div key={i} className="relative">
-                      <img src={typeof u === 'string' ? u : u.src} className="w-16 h-16 object-cover rounded" />
-                      {typeof u !== 'string' && u._tmpId && uploadProgress[u._tmpId] != null ? (
-                        <div className="absolute inset-0 bg-black bg-opacity-30 flex items-end">
-                          <div className="w-full h-2 bg-gray-300">
-                            <div style={{ width: uploadProgress[u._tmpId] + '%' }} className="h-2 bg-green-500" />
-                          </div>
-                        </div>
-                      ) : null}
-                      <button type="button" onClick={() => setForm(prev=>({ ...prev, images: prev.images.filter((_,idx)=> idx !== i) }))} className="absolute -top-2 -right-2 bg-red-600 text-white rounded-full w-5 h-5 text-xs leading-5">×</button>
-                    </div>
-                  ))}
-                </div>
+                {form.featuredImage ? (<img src={typeof form.featuredImage === 'string' ? form.featuredImage : (form.featuredImage?.url || '')} className="w-20 h-20 object-cover rounded" />) : (<div className="w-20 h-20 bg-gray-100 rounded flex items-center justify-center text-sm text-gray-500">No image</div>)}
+              </div>
+
+              <label className="block mb-1">Product album (multiple)</label>
+              <input type="file" accept="image/*" multiple onChange={async e=>{
+                const files = Array.from(e.target.files || []);
+                if(files.length === 0) return;
+                const added = [];
+                for(const file of files){
+                  const tmpId = Date.now() + '-' + Math.random().toString(36).slice(2,8);
+                  try{
+                    toast?.push?.({ message: 'Uploading image...', type: 'info' });
+                    setUploadProgress(prev=>({ ...prev, [tmpId]: 0 }));
+                    const resized = await resizeImage(file, 2000, 2000, 0.9);
+                    const fileToUpload = new File([resized], file.name || 'img.jpg', { type: resized.type });
+                    const body = await uploadImage(fileToUpload, pct => setUploadProgress(prev=>({ ...prev, [tmpId]: pct })));
+                    if(body){
+                      const public_id = body.raw?.public_id || body.public_id;
+                      const url = body.secure_url || body.url;
+                      added.push({ public_id, url });
+                      toast?.push?.({ message: 'Image uploaded', type: 'success' });
+                    }
+                  }catch(err){ console.error('image upload failed', err); toast?.push?.({ message: 'Failed to process image: ' + (err?.message||''), type: 'error' }); }
+                  setUploadProgress(prev => { const n = { ...prev }; delete n[tmpId]; return n; });
+                }
+                if(added.length) setForm(prev => ({ ...prev, images: [...(prev.images||[]), ...added] }));
+                if(e.currentTarget) e.currentTarget.value = '';
+              }} />
+
+              <div className="flex gap-2 mt-2 items-center">
+                {(form.images||[]).map((u,i)=> (
+                  <div key={i} className="relative">
+                    <img src={typeof u === 'string' ? u : (u.url || u.card || u.large || u.thumb || '')} className="w-16 h-16 object-cover rounded" />
+                    <button type="button" onClick={() => setForm(prev=>({ ...prev, images: prev.images.filter((_,idx)=> idx !== i) }))} className="absolute -top-2 -right-2 bg-red-600 text-white rounded-full w-5 h-5 text-xs leading-5">×</button>
+                  </div>
+                ))}
+              </div>
             </div>
             <div className="mb-2"><label><input type="checkbox" checked={!!form.featured} onChange={e=>setForm({...form, featured: e.target.checked})} /> Featured</label></div>
             <button className="px-4 py-2 btn-primary rounded">Create</button>
@@ -195,14 +225,25 @@ export default function AdminProducts({ initial }){
                       <div className="text-sm text-gray-500">₹{p.price} • {p.category}</div>
                 </div>
                 <div className="flex items-center gap-2">
-                      <label className="flex items-center gap-2 mr-2"><input type="checkbox" checked={!!p.featured} onChange={async (e) => {
-                        const v = e.target.checked;
-                        try{
-                          const r = await fetch('/api/products?id='+p._id, { method: 'PUT', credentials: 'include', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ featured: v }) });
-                          if(!r.ok) throw new Error('update failed');
-                          load();
-                        }catch(err){ toast?.push?.({ message: 'Failed to update featured: ' + (err.message || 'error'), type: 'error' }); }
-                      }} /> Featured</label>
+                      <label className="flex items-center gap-2 mr-2">
+                        <input type="checkbox" checked={!!p.featured} disabled={!!updatingFeatured[p._id]} onChange={async (e) => {
+                          const v = e.target.checked;
+                          // optimistic update
+                          setProducts(prev => prev.map(it => it._id === p._id ? { ...it, featured: v } : it));
+                          setUpdatingFeatured(prev => ({ ...prev, [p._id]: true }));
+                          toast?.push?.({ message: 'Updating featured...', type: 'info' });
+                          try{
+                            const r = await fetch('/api/products?id='+p._id, { method: 'PUT', credentials: 'include', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ featured: v }) });
+                            if(!r.ok) throw new Error('update failed');
+                            toast?.push?.({ message: 'Featured updated', type: 'success' });
+                            load();
+                          }catch(err){
+                            // revert
+                            setProducts(prev => prev.map(it => it._id === p._id ? { ...it, featured: !v } : it));
+                            toast?.push?.({ message: 'Failed to update featured: ' + (err.message || 'error'), type: 'error' });
+                          }finally{ setUpdatingFeatured(prev => { const n = { ...prev }; delete n[p._id]; return n; }); }
+                        }} /> Featured
+                      </label>
                       <button onClick={()=>{ setEditingId(p._id); setForm({ title: p.title || '', price: p.price || '', sku: p.sku || '', category: p.category || '', stock: p.stock || 0, description: p.description || '', images: p.images || [], featured: !!p.featured }) }} className="px-2 py-1 mr-2">Edit</button>
                       <button className="px-2 py-1" style={{ background: '#b91c1c', color: 'white', padding: '6px 10px', borderRadius: 6 }} onClick={async ()=>{ if(confirm('Delete?')){ await fetch('/api/products?id='+p._id,{ method: 'DELETE', credentials: 'include' }); load(); }}}>Delete</button>
                 </div>
@@ -215,10 +256,25 @@ export default function AdminProducts({ initial }){
   );
 }
 
-export async function getServerSideProps(ctx){
-  const session = await getSession(ctx);
-  if(!session || session.user.role !== 'admin') return { redirect: { destination: '/login', permanent: false } };
-  await dbConnect();
-  const initial = await Product.find({}).lean();
-  return { props: { initial: JSON.parse(JSON.stringify(initial)) } };
+// export async function getServerSideProps(ctx){
+//   const session = await getSession(ctx);
+//   if(!session || session.user.role !== 'admin') return { redirect: { destination: '/login', permanent: false } };
+//   // Don't serialize the full product list into the page HTML — fetch client-side to avoid large page data.
+//   // This reduces initial page payload and prevents Next.js large page data warnings.
+//   await dbConnect();
+//   return { props: {} };
+// }
+
+export async function getServerSideProps(ctx) {
+  const host = ctx.req.headers.host;  // works locally & on Vercel
+  const protocol = host.includes('localhost') ? 'http' : 'https';
+
+  const res = await fetch(`${protocol}://${host}/api/products`);
+  const data = await res.json();
+
+  return {
+    props: {
+      initial: data.products || []
+    }
+  };
 }

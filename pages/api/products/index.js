@@ -1,13 +1,31 @@
 import dbConnect from '@/lib/mongodb';
 import Product from '../../../models/Product';
-import { getSession } from 'next-auth/react';
 import { getToken } from 'next-auth/jwt';
+import { getServerSession } from 'next-auth/next';
+import { authOptions } from '../auth/[...nextauth]';
 
 export default async function handler(req,res){
   await dbConnect();
   if(req.method === 'GET'){
-    const products = await Product.find({}).lean();
-    return res.status(200).json(products);
+    // support pagination and basic filters for listing
+    const { page = '1', limit = '24', q, category } = req.query || {};
+    const PAGE = Math.max(1, parseInt(page, 10) || 1);
+    const LIMIT = Math.max(1, Math.min(200, parseInt(limit, 10) || 24));
+    const filter = {};
+    if(category) filter.category = category;
+    if(q) filter.title = { $regex: q, $options: 'i' };
+
+    const [products, total] = await Promise.all([
+      Product.find(filter)
+        .sort({ title: 1 })
+        .skip((PAGE - 1) * LIMIT)
+        .limit(LIMIT)
+        .select('title price sku category image')
+        .lean(),
+      Product.countDocuments(filter)
+    ]);
+
+    return res.status(200).json({ products, total, page: PAGE, limit: LIMIT });
   }
 
   // Protected admin actions
@@ -18,10 +36,14 @@ export default async function handler(req,res){
     }
   }catch(e){}
 
-  const session = await getSession({ req });
-  if(process.env.NODE_ENV !== 'production'){
-    console.log('POST /api/products - session:', session && { id: session.user?.id, role: session.user?.role });
-  }
+  // Use getServerSession for server-side session detection; fallback to getToken if needed
+  let session = null;
+  try{
+    session = await getServerSession(req, res, authOptions);
+    if(process.env.NODE_ENV !== 'production'){
+      console.log('POST /api/products - session:', session && { id: session.user?.id, role: session.user?.role });
+    }
+  }catch(e){ if(process.env.NODE_ENV !== 'production') console.warn('getServerSession failed', e && e.message); }
 
   // Fallback: try to read JWT token directly if getSession didn't return session
   let token = null;

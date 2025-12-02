@@ -11,7 +11,6 @@ import { useSession } from 'next-auth/react';
 import { useToast } from '@/components/Toast';
 import Pusher from 'pusher-js';
 import { mutate } from 'swr';
-import AdminSidebar from '@/components/AdminSidebar';
 
 // include credentials for admin APIs (session cookie) so server can authenticate requests
 const fetcher = url => fetch(url, { credentials: 'include' }).then(r => r.json());
@@ -69,6 +68,8 @@ export default function Admin({ dbError = false, errorMessage = '' }){
   const [description, setDescription] = useState('');
   const [image, setImage] = useState('');
   const [imagesInput, setImagesInput] = useState('');
+  const [uploadProgress, setUploadProgress] = useState({});
+  const [imagePreview, setImagePreview] = useState('');
   const [stock, setStock] = useState('');
   const [creating, setCreating] = useState(false);
   const [createMsg, setCreateMsg] = useState('');
@@ -81,17 +82,45 @@ export default function Admin({ dbError = false, errorMessage = '' }){
     if(!title || !price) { setCreateMsg('Title and price required'); return; }
     setCreating(true); setCreateMsg('');
     try{
-      const images = imagesInput ? imagesInput.split(',').map(i=>i.trim()).filter(Boolean) : (image ? [image] : []);
-      const payload = { title, description, price: Number(price), sku, image: image || images[0] || '', images, category, stock: Number(stock || 0), featured };
+      // build images array: prefer uploaded imagePreview/url; support comma list in imagesInput as fallback
+      const images = imagePreview ? [imagePreview] : (imagesInput ? imagesInput.split(',').map(i=>i.trim()).filter(Boolean) : (image ? [image] : []));
+      // auto-generate SKU if empty
+      let finalSku = sku && sku.trim() ? sku.trim() : '';
+      if(!finalSku){
+        const slug = (title + ' ' + (category||'')).toLowerCase().replace(/[^a-z0-9]+/g,'-').replace(/(^-|-$)/g,'');
+        finalSku = (slug || 'item') + '-' + String(Date.now()).slice(-5);
+      }
+      const payload = { title, description, price: Number(price), sku: finalSku, image: imagePreview || image || images[0] || '', images, category, stock: Number(stock || 0), featured };
       const res = await fetch('/api/products', { method: 'POST', credentials: 'include', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
       const data = await res.json();
       if(!res.ok) throw new Error(data?.error || 'Create failed');
+      toast?.push?.({ title: 'Product saved', message: 'Product has been created successfully.', type: 'success' });
       setCreateMsg('Created');
       setTitle(''); setPrice(''); setCategory(''); setSku(''); setFeatured(false); setDescription(''); setImage(''); setImagesInput(''); setStock('');
+      setImagePreview(''); setUploadProgress({});
       mutate('/api/products');
     }catch(e){ setCreateMsg(e.message || 'Error'); }
     setCreating(false);
   },[title,price,category,sku,featured]);
+
+  // upload helper: similar to admin/products uploadImage
+  async function uploadImageFile(file, onProgress){
+    try{
+      const dataUrl = await new Promise((res, rej) => {
+        const r = new FileReader();
+        r.onload = () => res(r.result);
+        r.onerror = rej;
+        r.readAsDataURL(file);
+      });
+      const resp = await fetch('/api/admin/upload-image', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ dataUrl }) });
+      const body = await resp.json().catch(()=>null);
+      if(!resp.ok){
+        const msg = body && (body.error || (body.details && body.details.error) || JSON.stringify(body)) || 'upload failed';
+        throw new Error(msg);
+      }
+      return body.secure_url || body.url || body.secureUrl || null;
+    }catch(e){ console.error('uploadImageFile', e); toast?.push?.({ title: 'Upload failed', message: e.message || 'Image upload failed', type: 'error' }); return null; }
+  }
 
   const updateUser = useCallback(async (id, patch) => {
     setUserBusy(prev=>({ ...prev, [id]: true }));
@@ -105,6 +134,10 @@ export default function Admin({ dbError = false, errorMessage = '' }){
     }catch(e){ setUserMsg(prev=>({ ...prev, [id]: e.message || 'Error' })); }
     setUserBusy(prev=>({ ...prev, [id]: false }));
   },[]);
+
+  // categories for quick add
+  const [categories, setCategories] = useState([]);
+  useEffect(()=>{ (async function(){ try{ const r = await fetch('/api/admin/categories'); const c = await r.json(); setCategories(c || []); }catch(e){} })(); },[]);
 
   const deleteUser = useCallback(async (id) => {
     if(!confirm('Delete user ' + id + '? This is permanent.')) return;
@@ -287,42 +320,18 @@ export default function Admin({ dbError = false, errorMessage = '' }){
       </div>
     ) : (
     <div className="p-6">
-      <div className="grid grid-cols-1 md:grid-cols-5 gap-6">
-        <AdminSidebar />
-        <main className="md:col-span-4">
+      <div className="grid grid-cols-1 gap-6">
+        <main>
           <div className="flex items-center justify-between mb-4">
             <h1 className="text-2xl font-bold">Admin Dashboard</h1>
             <div className="space-x-2">
               <a href="/admin/products" className="px-3 py-1 bg-gray-100 rounded">Products</a>
               <a href="/admin/coupons" className="px-3 py-1 bg-gray-100 rounded">Coupons</a>
+              <a href="/admin/inventory" className="px-3 py-1 bg-gray-100 rounded">Inventory</a>
+              <a href="/admin/categories" className="px-3 py-1 bg-gray-100 rounded">Categories</a>
             </div>
           </div>
-      {/* Quick add product form */}
-      <div className="bg-white p-4 rounded shadow mb-6">
-        <h3 className="font-semibold mb-2">Quick Add Product</h3>
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-2">
-          <input value={title} onChange={e=>setTitle(e.target.value)} placeholder="Title" className="p-2 border rounded" />
-          <input value={price} onChange={e=>setPrice(e.target.value)} placeholder="Price" className="p-2 border rounded" />
-          <input value={category} onChange={e=>setCategory(e.target.value)} placeholder="Category" className="p-2 border rounded" />
-          <input value={sku} onChange={e=>setSku(e.target.value)} placeholder="SKU" className="p-2 border rounded" />
-        </div>
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-2 mt-2">
-          <input value={description} onChange={e=>setDescription(e.target.value)} placeholder="Short description" className="p-2 border rounded" />
-          <input value={image} onChange={e=>setImage(e.target.value)} placeholder="Primary image URL (e.g. /images/sample2.svg)" className="p-2 border rounded" />
-          <input value={imagesInput} onChange={e=>setImagesInput(e.target.value)} placeholder="Other images (comma separated)" className="p-2 border rounded" />
-        </div>
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-2 mt-2">
-          <input value={stock} onChange={e=>setStock(e.target.value)} placeholder="Stock (number)" className="p-2 border rounded" />
-        </div>
-        <div className="flex items-center gap-3 mt-3">
-          <label className="flex items-center gap-2"><input type="checkbox" checked={featured} onChange={e=>setFeatured(e.target.checked)} /> Featured</label>
-          <button onClick={handleCreateProduct} disabled={status !== 'authenticated' || session?.user?.role !== 'admin'} className="bg-blue-600 text-white px-3 py-1 rounded shadow disabled:opacity-50">Create</button>
-          {status !== 'authenticated' && <span className="text-sm text-red-600">Sign in as admin to create products</span>}
-          {status === 'authenticated' && session?.user?.role !== 'admin' && <span className="text-sm text-red-600">Admin role required</span>}
-          {creating && <span className="text-sm text-gray-600">Creating...</span>}
-          {createMsg && <span className="text-sm ml-2">{createMsg}</span>}
-        </div>
-      </div>
+      {/* Quick add removed — use /admin/products for full product creation */}
       <div className="grid grid-cols-3 gap-4 mb-6">
         <div className="bg-white p-4 rounded shadow">Total Orders: {analytics?.orders ?? orders?.length ?? '-'}</div>
         <div className="bg-white p-4 rounded shadow">Total Products: {productsList ? productsList.length : '-'}</div>

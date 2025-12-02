@@ -3,7 +3,7 @@ import dbConnect from '@/lib/mongodb';
 import Order from '../../../models/Order';
 import Message from '../../../models/Message';
 import { useState, useEffect } from 'react';
-import Toast from '@/components/Toast';
+// local toast handled via showToast; do not import default Toast (use ToastProvider/useToast elsewhere)
 import { useRouter } from 'next/router';
 
 export default function AdminOrderDetail({ initialOrder, initialMessages }){

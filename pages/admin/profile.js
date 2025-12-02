@@ -1,7 +1,7 @@
 import { getSession, useSession } from "next-auth/react";
 import { useState } from "react";
-import Toast from '@/components/Toast';
 import { useRouter } from 'next/router';
+import { useToast } from '@/components/Toast';
 
 export default function AdminProfile({ user }) {
   const { data: session } = useSession();
@@ -15,12 +15,7 @@ export default function AdminProfile({ user }) {
   });
 
   const [loading, setLoading] = useState(false);
-  const [toast, setToast] = useState(null);
-
-  function showToast(msg, type='success'){
-    setToast({ msg, type });
-    setTimeout(()=>setToast(null), 3200);
-  }
+  const toast = useToast();
 
   const save = async () => {
     try {
@@ -33,10 +28,10 @@ export default function AdminProfile({ user }) {
       });
 
       if (!res.ok) throw new Error("Failed to update profile");
-      showToast('Profile updated', 'success');
+  toast?.push?.({ title: 'Profile updated', message: 'Your profile changes were saved', type: 'success' });
     } catch (err) {
       console.error(err);
-      showToast('Something went wrong while saving profile', 'error');
+  toast?.push?.({ title: 'Save failed', message: 'Something went wrong while saving profile', type: 'error' });
     } finally {
       setLoading(false);
     }
@@ -98,7 +93,7 @@ export default function AdminProfile({ user }) {
         </div>
       </div>
 
-      <Toast message={toast?.msg} type={toast?.type} />
+  {/* toasts shown via ToastProvider */}
     </div>
   );
 }

@@ -5,7 +5,13 @@ import { CartContext } from './CartContext';
 
 export default function ProductCard({ product }) {
   const title = product.title || product.name || 'Product';
-  const img = product.image || (product.images && product.images[0]) || '/images/sample1.svg';
+  function pickSize(item, size){
+    if(!item) return null;
+    if(typeof item === 'string') return item;
+    if(typeof item === 'object') return item.url || item[size] || item.card || item.large || item.thumb || null;
+    return null;
+  }
+  const img = pickSize(product.image, 'card') || pickSize(product.images && product.images[0], 'card') || '/images/sample1.svg';
   const price = typeof product.price === 'number' ? product.price : (product.price || 0);
   const originalPrice = typeof product.originalPrice === 'number' ? product.originalPrice : null;
   const id = product._id || product.sku || title.replace(/\s+/g, '-').toLowerCase();
@@ -19,7 +25,15 @@ export default function ProductCard({ product }) {
   <div className="rounded-2xl shadow-2xl hover:shadow-3xl transition-transform transform hover:-translate-y-1 overflow-hidden card flex flex-col h-full shadow-3d glow">
       <Link href={`/product/${id}`} className="block">
         <div className="w-full h-56 product-image-backdrop flex items-center justify-center">
-          <img src={img} alt={title} className="max-h-48 object-contain" />
+          {/* responsive srcSet: thumb -> card -> large if available */}
+          {(() => {
+            const pimg = product.image || (product.images && product.images[0]);
+            const thumb = pickSize(pimg, 'thumb');
+            const card = pickSize(pimg, 'card') || thumb || img;
+            const large = pickSize(pimg, 'large') || card;
+            const srcSet = `${thumb ? `${thumb} 200w,` : ''} ${card ? `${card} 600w,` : ''} ${large ? `${large} 1200w` : ''}`;
+            return <img src={card || img} srcSet={srcSet} sizes="(max-width: 640px) 100vw, 33vw" loading="lazy" alt={title} className="max-h-48 object-contain" onError={(e)=>{ e.currentTarget.onerror = null; e.currentTarget.src = '/images/sample1.svg'; e.currentTarget.srcset = ''; }} />;
+          })()}
         </div>
       </Link>
 

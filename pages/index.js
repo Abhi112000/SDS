@@ -1,8 +1,7 @@
 import Link from "next/link";
 import ProductCard from "../components/ProductCard";
-import { useEffect, useState } from 'react';
-import fs from 'fs';
-import path from 'path';
+import dbConnect from '@/lib/mongodb';
+import Product from '@/models/Product';
 
 export default function Home({ products = [] }) {
   return (
@@ -34,15 +33,13 @@ export default function Home({ products = [] }) {
   );
 }
 
-export async function getStaticProps() {
-  const p = path.join(process.cwd(), 'data', 'sample_products.json');
-  let products = [];
-  try {
-    products = JSON.parse(fs.readFileSync(p, 'utf8'));
-    products = products.filter((x) => x.featured);
-  } catch (e) {
-    console.warn('Could not read sample products:', e.message || e);
+export async function getServerSideProps(){
+  try{
+    await dbConnect();
+    const products = await Product.find({ featured: true }).lean();
+    return { props: { products: JSON.parse(JSON.stringify(products || [])) } };
+  }catch(e){
+    console.warn('Could not load featured products', e && e.message);
+    return { props: { products: [] } };
   }
-
-  return { props: { products } };
 }

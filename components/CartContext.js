@@ -9,7 +9,15 @@ export function CartProvider({ children }){
     const productId = product._id || product.sku || (product.title || '').replace(/\s+/g,'-').toLowerCase();
     const idx = items.findIndex(i=>i.productId===productId);
     if(idx>-1) items[idx].qty += qty;
-    else items.push({ productId, title: product.title || product.name || 'Product', price: product.price || 0, qty, image: product.image || (product.images && product.images[0]) || null });
+    else {
+      function pickSize(item){
+        if(!item) return null;
+        if(typeof item === 'string') return item;
+        if(typeof item === 'object') return item.url || item.card || item.large || item.thumb || null;
+        return null;
+      }
+      items.push({ productId, title: product.title || product.name || 'Product', price: product.price || 0, qty, image: pickSize(product.image) || pickSize(product.images && product.images[0]) || null });
+    }
     return { ...prev, items };
   });
   // emit event for immediate UI updates (header badge)
