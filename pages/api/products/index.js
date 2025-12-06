@@ -7,25 +7,8 @@ import { authOptions } from '../auth/[...nextauth]';
 export default async function handler(req,res){
   await dbConnect();
   if(req.method === 'GET'){
-    // support pagination and basic filters for listing
-    const { page = '1', limit = '24', q, category } = req.query || {};
-    const PAGE = Math.max(1, parseInt(page, 10) || 1);
-    const LIMIT = Math.max(1, Math.min(200, parseInt(limit, 10) || 24));
-    const filter = {};
-    if(category) filter.category = category;
-    if(q) filter.title = { $regex: q, $options: 'i' };
-
-    const [products, total] = await Promise.all([
-      Product.find(filter)
-        .sort({ title: 1 })
-        .skip((PAGE - 1) * LIMIT)
-        .limit(LIMIT)
-        .select('title price sku category image')
-        .lean(),
-      Product.countDocuments(filter)
-    ]);
-
-    return res.status(200).json({ products, total, page: PAGE, limit: LIMIT });
+    const products = await Product.find({}).lean();
+    return res.status(200).json(products);
   }
 
   // Protected admin actions
@@ -63,13 +46,59 @@ export default async function handler(req,res){
   }
 
   if(req.method === 'POST'){
-    const p = await Product.create(req.body);
+    // Server-side enforcement for sale tags and saleHistory on create
+    const body = { ...req.body };
+    body.price = typeof body.price === 'string' ? Number(body.price) : body.price;
+    body.originalPrice = body.originalPrice !== undefined ? (typeof body.originalPrice === 'string' ? Number(body.originalPrice) : body.originalPrice) : body.originalPrice;
+    if(body.onSale){
+      body.tags = Array.from(new Set([...(body.tags || []), 'SALE!']));
+      const histPrice = body.salePrice !== undefined ? (typeof body.salePrice === 'string' ? Number(body.salePrice) : body.salePrice) : body.price;
+      body.saleHistory = Array.isArray(body.saleHistory) && body.saleHistory.length ? body.saleHistory : [{ price: Number(histPrice || 0), startAt: new Date().toISOString(), active: true }];
+    }
+    const p = await Product.create(body);
     return res.status(201).json(p);
   }
 
   if(req.method === 'PUT'){
     const { id } = req.query;
-    const updated = await Product.findByIdAndUpdate(id, req.body, { new: true });
+    const incoming = { ...req.body };
+    // load existing product to compute sale transitions
+    const existing = await Product.findById(id).lean();
+    if(!existing) return res.status(404).json({ error: 'not found' });
+
+    const update = { ...incoming };
+    // normalize numeric fields if present
+    if(update.price !== undefined) update.price = typeof update.price === 'string' ? Number(update.price) : update.price;
+    if(update.originalPrice !== undefined) update.originalPrice = typeof update.originalPrice === 'string' ? Number(update.originalPrice) : update.originalPrice;
+    if(update.salePrice !== undefined) update.salePrice = typeof update.salePrice === 'string' ? Number(update.salePrice) : update.salePrice;
+
+    const now = new Date().toISOString();
+    // Sale started
+    if(update.onSale === true && !existing.onSale){
+      update.tags = Array.from(new Set([...(existing.tags || []), 'SALE!']));
+      const histPrice = update.salePrice !== undefined ? update.salePrice : (existing.salePrice !== undefined ? existing.salePrice : (update.price !== undefined ? update.price : existing.price));
+      const history = Array.isArray(existing.saleHistory) ? [...existing.saleHistory] : [];
+      history.push({ price: Number(histPrice || 0), startAt: now, active: true });
+      update.saleHistory = history;
+    }
+    // Sale stopped
+    if(update.onSale === false && existing.onSale){
+      // remove SALE! tag
+      update.tags = (existing.tags || []).filter(t => t !== 'SALE!');
+      // mark last active history entry inactive
+      const history = Array.isArray(existing.saleHistory) ? existing.saleHistory.map((h,i)=> i===existing.saleHistory.length-1 ? ({ ...h, endAt: now, active: false }) : h) : [];
+      update.saleHistory = history;
+    }
+    // If salePrice updated while sale is active, update last active history price
+    if(update.salePrice !== undefined && existing.onSale){
+      const history = Array.isArray(existing.saleHistory) ? [...existing.saleHistory] : [];
+      const lastIdx = history.map(h=>h.active?1:0).lastIndexOf(1);
+      const idx = lastIdx === -1 ? history.length-1 : lastIdx;
+      if(history[idx]){ history[idx].price = Number(update.salePrice); }
+      update.saleHistory = history;
+    }
+
+    const updated = await Product.findByIdAndUpdate(id, update, { new: true });
     return res.status(200).json(updated);
   }
 

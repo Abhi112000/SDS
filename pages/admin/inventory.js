@@ -13,12 +13,16 @@ export default function AdminInventory({ initial = [] }){
   const [categories, setCategories] = useState([]);
   const [editingId, setEditingId] = useState(null);
   const [editValues, setEditValues] = useState({});
+  const [editingSaleIndex, setEditingSaleIndex] = useState(null);
+  const [saleDraft, setSaleDraft] = useState({});
   const toast = useToast();
 
   async function load(){
     const res = await fetch('/api/products', { credentials: 'include' });
     const data = await res.json();
-    setItems(data.products || []);
+    // Support both older API (returns array) and newer paginated shape { products, total }
+    const products = Array.isArray(data) ? data : (data && data.products) || [];
+    setItems(products);
   }
 
   async function loadCategories(){
@@ -66,16 +70,70 @@ export default function AdminInventory({ initial = [] }){
     w.document.write(html); w.document.close(); setTimeout(()=>{ try{ w.focus(); w.print(); }catch(e){} },300);
   }
 
-  async function startEdit(it){ setEditingId(it._id); setEditValues({ price: it.price||0, originalPrice: it.originalPrice||0, stock: it.stock||0, title: it.title||'', sku: it.sku||'', category: it.category||'' }); }
+  async function startEdit(it){ setEditingId(it._id); setEditValues({ price: it.price||0, originalPrice: it.originalPrice||0, stock: it.stock||0, title: it.title||'', sku: it.sku||'', category: it.category||'', onSale: !!it.onSale, salePrice: it.salePrice !== undefined ? it.salePrice : '', saleHistory: Array.isArray(it.saleHistory) ? it.saleHistory : [] }); }
 
   async function saveEdit(id){
     try{
       const payload = { price: Number(editValues.price||0), originalPrice: Number(editValues.originalPrice||0), stock: Number(editValues.stock||0), title: editValues.title, sku: editValues.sku, category: editValues.category };
+      // include sale fields when present
+      if(editValues.salePrice !== undefined) payload.salePrice = Number(editValues.salePrice || 0);
+      if(editValues.onSale !== undefined) payload.onSale = !!editValues.onSale;
       const r = await fetch('/api/products?id=' + id, { method: 'PUT', credentials: 'include', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
       if(!r.ok) throw new Error('Save failed');
       toast?.push?.({ message: 'Saved', type: 'success' });
       setEditingId(null); setEditValues({}); load();
     }catch(e){ toast?.push?.({ message: 'Save failed: ' + (e.message||''), type: 'error' }); }
+  }
+
+  function startEditSale(idx){
+    const entry = (editValues.saleHistory || [])[idx];
+    if(!entry) return;
+    setEditingSaleIndex(idx);
+    setSaleDraft({ ...entry });
+  }
+
+  async function saveSaleEntry(id, idx){
+    try{
+      const prod = (items || []).find(x => x._id === id);
+      if(!prod) throw new Error('Product not found');
+      const history = Array.isArray(prod.saleHistory) ? [...prod.saleHistory] : [];
+      history[idx] = { ...history[idx], ...saleDraft };
+      const r = await fetch('/api/products?id=' + id, { method: 'PUT', credentials: 'include', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ saleHistory: history }) });
+      if(!r.ok) throw new Error('Save failed');
+      toast?.push?.({ message: 'Sale entry saved', type: 'success' });
+      setEditingSaleIndex(null); setSaleDraft({}); load();
+    }catch(e){ toast?.push?.({ message: 'Save failed: ' + (e.message||''), type: 'error' }); }
+  }
+
+  async function removeSaleEntry(id, idx){
+    if(!confirm('Remove this sale-history entry?')) return;
+    try{
+      const prod = (items || []).find(x => x._id === id);
+      if(!prod) throw new Error('Product not found');
+      const history = Array.isArray(prod.saleHistory) ? [...prod.saleHistory] : [];
+      history.splice(idx,1);
+      const r = await fetch('/api/products?id=' + id, { method: 'PUT', credentials: 'include', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ saleHistory: history }) });
+      if(!r.ok) throw new Error('Remove failed');
+      toast?.push?.({ message: 'Sale entry removed', type: 'success' });
+      load();
+    }catch(e){ toast?.push?.({ message: 'Remove failed: ' + (e.message||''), type: 'error' }); }
+  }
+
+  async function removeSaleTag(id){
+    if(!confirm('Remove SALE tag and mark sale inactive for this product?')) return;
+    try{
+      // fetch current product from items
+      const prod = (items || []).find(x => x._id === id);
+      if(!prod) throw new Error('Product not found');
+      const tags = (prod.tags || []).filter(t => t !== 'SALE!');
+      // mark last saleHistory entry inactive
+      const history = Array.isArray(prod.saleHistory) ? prod.saleHistory.map((h,i)=> i===prod.saleHistory.length-1 ? ({ ...h, endAt: new Date().toISOString(), active: false }) : h) : [];
+      const payload = { tags, onSale: false, saleHistory: history };
+      const r = await fetch('/api/products?id=' + id, { method: 'PUT', credentials: 'include', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
+      if(!r.ok) throw new Error('Remove failed');
+      toast?.push?.({ message: 'Sale removed', type: 'success' });
+      load();
+    }catch(e){ toast?.push?.({ message: 'Remove failed: ' + (e.message||''), type: 'error' }); }
   }
 
   async function handleDelete(id){ if(!confirm('Delete item?')) return; try{ const r = await fetch('/api/products?id='+id, { method: 'DELETE', credentials: 'include' }); if(!r.ok) throw new Error('Delete failed'); toast?.push?.({ message: 'Deleted', type: 'success' }); load(); }catch(e){ toast?.push?.({ message: 'Delete failed: ' + (e.message||''), type: 'error' }); } }
@@ -103,12 +161,14 @@ export default function AdminInventory({ initial = [] }){
 
       <div className="bg-white p-4 rounded shadow overflow-auto">
         <table className="w-full text-sm table-auto">
-          <thead><tr className="bg-gray-100"><th className="p-2 text-left">Title</th><th className="p-2">SKU</th><th className="p-2">Category</th><th className="p-2 text-right">Price</th><th className="p-2 text-right">Actual</th><th className="p-2 text-right">Stock</th><th className="p-2 text-right">Profit/unit</th><th className="p-2 text-right">Total Potential</th><th className="p-2">Actions</th></tr></thead>
+          <thead><tr className="bg-gray-100"><th className="p-2 text-left">Title</th><th className="p-2">SKU</th><th className="p-2">Category</th><th className="p-2 text-right">Price</th><th className="p-2 text-right">Actual</th><th className="p-2 text-right">Stock</th><th className="p-2 text-right">Profit/unit</th><th className="p-2 text-right">Sale Profit/unit</th><th className="p-2 text-right">Total Potential</th><th className="p-2">Actions</th></tr></thead>
           <tbody>
             {filtered().map(it => {
               const selling = Number(it.price||0);
               const actual = Number(it.originalPrice||0);
               const profitPer = selling - actual;
+              const salePrice = Number(it.salePrice || 0);
+              const saleProfitPer = salePrice ? (salePrice - actual) : 0;
               const totalPotential = profitPer * Number(it.stock || 0);
               return (
                 <tr key={it._id} className="border-t">
@@ -119,11 +179,13 @@ export default function AdminInventory({ initial = [] }){
                   <td className="p-2 text-right">{formatCurrency(actual)}</td>
                   <td className="p-2 text-right">{it.stock||0}</td>
                   <td className="p-2 text-right">{profitPer.toFixed(2)}</td>
+                  <td className="p-2 text-right">{salePrice ? saleProfitPer.toFixed(2) : '-'}</td>
                   <td className="p-2 text-right">{totalPotential.toFixed(2)}</td>
                   <td className="p-2">
                     <div className="flex gap-2">
                       <button className="px-2 py-1 bg-blue-600 text-white rounded" onClick={()=>startEdit(it)}>Update</button>
                       <button className="px-2 py-1 bg-red-600 text-white rounded" onClick={()=>handleDelete(it._id)}>Delete</button>
+                      {it.tags && it.tags.includes('SALE!') ? (<button title="Remove sale" className="px-2 py-1 bg-yellow-500 text-white rounded" onClick={()=>removeSaleTag(it._id)}>✕ Sale</button>) : null}
                     </div>
                   </td>
                 </tr>
@@ -163,6 +225,19 @@ export default function AdminInventory({ initial = [] }){
                 <input type="number" value={editValues.price} onChange={e=>setEditValues(prev=>({...prev,price:e.target.value}))} className="p-2 border rounded w-full" />
               </div>
               <div>
+                <label className="block text-sm">On Sale</label>
+                <div className="flex items-center gap-2">
+                  <input type="checkbox" checked={!!editValues.onSale} onChange={e=>setEditValues(prev=>({...prev,onSale:e.target.checked}))} />
+                  <span className="text-sm text-gray-600">Mark product on sale</span>
+                </div>
+              </div>
+              {editValues.onSale && (
+                <div>
+                  <label className="block text-sm">Sale Price</label>
+                  <input type="number" value={editValues.salePrice} onChange={e=>setEditValues(prev=>({...prev,salePrice:e.target.value}))} className="p-2 border rounded w-full" />
+                </div>
+              )}
+              <div>
                 <label className="block text-sm">Actual / Cost Price</label>
                 <input type="number" value={editValues.originalPrice} onChange={e=>setEditValues(prev=>({...prev,originalPrice:e.target.value}))} className="p-2 border rounded w-full" />
               </div>
@@ -171,6 +246,36 @@ export default function AdminInventory({ initial = [] }){
               <button className="px-4 py-2 bg-gray-100 rounded" onClick={()=>{ setEditingId(null); setEditValues({}); }}>Cancel</button>
               <button className="px-4 py-2 bg-red-600 text-white rounded" onClick={()=>handleDelete(editingId)}>Delete</button>
               <button className="px-4 py-2 bg-green-600 text-white rounded" onClick={()=>saveEdit(editingId)}>Save</button>
+            </div>
+            {/* Sale history panel */}
+            <div className="mt-4 border-t pt-4">
+              <h4 className="text-sm font-medium mb-2">Sale History</h4>
+              {(editValues.saleHistory || []).length === 0 && (<div className="text-sm text-gray-500">No sale history for this product.</div>)}
+              <div className="space-y-2">
+                {(editValues.saleHistory || []).map((h,idx) => (
+                  <div key={idx} className="p-2 border rounded flex items-start justify-between">
+                    <div>
+                      <div className="text-sm font-medium">Price: ₹{Number(h.price||0).toFixed(2)} {h.active ? <span className="text-xs text-green-600 ml-2">Active</span> : <span className="text-xs text-gray-500 ml-2">Ended</span>}</div>
+                      <div className="text-xs text-gray-500">Start: {h.startAt ? new Date(h.startAt).toLocaleString() : '-'}</div>
+                      <div className="text-xs text-gray-500">End: {h.endAt ? new Date(h.endAt).toLocaleString() : '-'}</div>
+                    </div>
+                    <div className="flex flex-col gap-2">
+                      {editingSaleIndex === idx ? (
+                        <div className="flex gap-2">
+                          <input type="number" value={saleDraft.price || ''} onChange={e=>setSaleDraft(prev=>({...prev,price:e.target.value}))} className="p-1 border rounded w-28" />
+                          <button className="px-2 py-1 bg-green-600 text-white rounded" onClick={()=>saveSaleEntry(editingId, idx)}>Save</button>
+                          <button className="px-2 py-1 bg-gray-100 rounded" onClick={()=>{ setEditingSaleIndex(null); setSaleDraft({}); }}>Cancel</button>
+                        </div>
+                      ) : (
+                        <div className="flex flex-col">
+                          <button className="px-2 py-1 bg-blue-600 text-white rounded mb-1" onClick={()=>startEditSale(idx)}>Edit</button>
+                          <button className="px-2 py-1 bg-red-600 text-white rounded" onClick={()=>removeSaleEntry(editingId, idx)}>Remove</button>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                ))}
+              </div>
             </div>
           </div>
         </div>

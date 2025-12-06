@@ -33,7 +33,8 @@ export default function Admin({ dbError = false, errorMessage = '' }){
   const [invDiscountLabel, setInvDiscountLabel] = useState('');
   const { data: analytics } = useSWR('/api/admin/analytics', fetcher);
   const { data: users } = useSWR('/api/admin/users', fetcher);
-  const { data: productsList } = useSWR('/api/products', fetcher);
+  const { data: productsListRaw } = useSWR('/api/products', fetcher);
+  const productsList = Array.isArray(productsListRaw) ? productsListRaw : (productsListRaw && productsListRaw.products) || [];
   const { data: invoices, mutate: mutateInvoices } = useSWR('/api/admin/invoices', fetcher);
   const { data: invoiceSettings, mutate: mutateInvoiceSettings } = useSWR('/api/admin/invoice-settings', fetcher);
   const [selectedInvoice, setSelectedInvoice] = useState(null);

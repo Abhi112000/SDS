@@ -3,7 +3,7 @@ import ProductCard from "../components/ProductCard";
 import dbConnect from '@/lib/mongodb';
 import Product from '@/models/Product';
 
-export default function Home({ products = [] }) {
+export default function Home({ products = [], saleProducts = [] }) {
   return (
     <main>
       <section className="py-20 hero-gradient">
@@ -20,15 +20,27 @@ export default function Home({ products = [] }) {
         </div>
       </section>
 
-      <section className="max-w-7xl mx-auto px-4 py-16">
-        <h2 className="text-2xl font-bold mb-6 text-gray-800">Featured Products</h2>
-        
-        <div className="grid sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
-          {products.map((p, i) => (
-            <ProductCard key={p.sku || i} product={p} />
-          ))}
-        </div>
-      </section>
+      {products && products.length > 0 && (
+        <section className="max-w-7xl mx-auto px-4 py-16">
+          <h2 className="text-2xl font-bold mb-6 text-gray-800">Featured Products</h2>
+          <div className="grid sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
+            {products.map((p, i) => (
+              <ProductCard key={p.sku || i} product={p} />
+            ))}
+          </div>
+        </section>
+      )}
+
+      {saleProducts && saleProducts.length > 0 && (
+        <section className="max-w-7xl mx-auto px-4 py-16">
+          <h2 className="text-2xl font-bold mb-6 text-red-600">On Sale</h2>
+          <div className="grid sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
+            {saleProducts.map((p, i) => (
+              <ProductCard key={p._id || i} product={p} />
+            ))}
+          </div>
+        </section>
+      )}
     </main>
   );
 }
@@ -36,8 +48,9 @@ export default function Home({ products = [] }) {
 export async function getServerSideProps(){
   try{
     await dbConnect();
-    const products = await Product.find({ featured: true }).lean();
-    return { props: { products: JSON.parse(JSON.stringify(products || [])) } };
+  const products = await Product.find({ featured: true }).lean();
+  const saleProducts = await Product.find({ $or: [{ onSale: true }, { tags: 'SALE!' }] }).lean();
+  return { props: { products: JSON.parse(JSON.stringify(products || [])), saleProducts: JSON.parse(JSON.stringify(saleProducts || [])) } };
   }catch(e){
     console.warn('Could not load featured products', e && e.message);
     return { props: { products: [] } };

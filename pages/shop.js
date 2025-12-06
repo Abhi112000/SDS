@@ -7,14 +7,10 @@ import Product from '@/models/Product';
 import Category from '@/models/Category';
 import { useEffect, useState } from 'react';
 
-export default function Shop({ categories = [], q = '', category = '' }) {
+export default function Shop({ products = [], categories = [], q = '', category = '' }) {
   const router = useRouter();
   const [search, setSearch] = useState(q || '');
   const [cat, setCat] = useState(category || '');
-  const [products, setProducts] = useState([]);
-  const [page, setPage] = useState(1);
-  const [total, setTotal] = useState(0);
-  const PAGE_SIZE = 24;
 
   function submitFilter(e){
     e && e.preventDefault();
@@ -24,23 +20,6 @@ export default function Shop({ categories = [], q = '', category = '' }) {
     const qs = params.toString();
     router.push('/shop' + (qs ? ('?' + qs) : ''));
   }
-
-  useEffect(()=>{
-    // load first page
-    async function load(p = 1){
-      const params = new URLSearchParams();
-      if(search) params.set('q', search);
-      if(cat) params.set('category', cat);
-      params.set('page', String(p));
-      params.set('limit', String(PAGE_SIZE));
-      const r = await fetch('/api/products?' + params.toString());
-      const body = await r.json();
-      setProducts(body.products || []);
-      setTotal(body.total || 0);
-      setPage(body.page || p);
-    }
-    load(1);
-  }, [search, cat]);
 
   return (
     <main className="max-w-7xl mx-auto px-4 py-10">
@@ -59,16 +38,10 @@ export default function Shop({ categories = [], q = '', category = '' }) {
 
       <div className="grid sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
         {products.map((product) => (
-          <div key={product._id || product.sku}>
+          <div key={product._id}>
             <ProductCard product={product} />
           </div>
         ))}
-      </div>
-
-      <div className="mt-6 flex items-center justify-center gap-3">
-        {page > 1 && <button onClick={async ()=>{ const p = page - 1; const params = new URLSearchParams(); if(search) params.set('q', search); if(cat) params.set('category', cat); params.set('page', String(p)); params.set('limit', String(PAGE_SIZE)); const r = await fetch('/api/products?' + params.toString()); const b = await r.json(); setProducts(b.products||[]); setPage(b.page||p); }} className="px-3 py-1 border rounded">Previous</button>}
-        <div>Page {page} • {total} items</div>
-        {page * PAGE_SIZE < total && <button onClick={async ()=>{ const p = page + 1; const params = new URLSearchParams(); if(search) params.set('q', search); if(cat) params.set('category', cat); params.set('page', String(p)); params.set('limit', String(PAGE_SIZE)); const r = await fetch('/api/products?' + params.toString()); const b = await r.json(); setProducts(b.products||[]); setPage(b.page||p); }} className="px-3 py-1 border rounded">Next</button>}
       </div>
 
       <div className="text-center mt-10">
@@ -84,10 +57,13 @@ export default function Shop({ categories = [], q = '', category = '' }) {
 }
 
 export async function getServerSideProps(ctx){
-  // Only fetch categories server-side — product list is loaded client-side via /api/products (paginated)
   await dbConnect();
   const { q, category } = ctx.query || {};
+  const filter = {};
+  if(category) filter.category = category;
+  if(q) filter.title = { $regex: q, $options: 'i' };
+  const products = await Product.find(filter).lean();
   const categories = [];
   try{ const CategoryModel = (await import('@/models/Category')).default; const cats = await CategoryModel.find({}).sort({ name: 1 }).lean(); categories.push(...cats); }catch(e){}
-  return { props: { categories: JSON.parse(JSON.stringify(categories || [])), q: q || '', category: category || '' } };
+  return { props: { products: JSON.parse(JSON.stringify(products || [])), categories: JSON.parse(JSON.stringify(categories || [])), q: q || '', category: category || '' } };
 }

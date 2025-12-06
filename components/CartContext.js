@@ -16,7 +16,9 @@ export function CartProvider({ children }){
         if(typeof item === 'object') return item.url || item.card || item.large || item.thumb || null;
         return null;
       }
-      items.push({ productId, title: product.title || product.name || 'Product', price: product.price || 0, qty, image: pickSize(product.image) || pickSize(product.images && product.images[0]) || null });
+      // ensure price uses numeric value and prefer salePrice when present
+      const pPrice = (product.salePrice !== undefined && (product.onSale || (product.tags && product.tags.includes && product.tags.includes('SALE!')))) ? Number(product.salePrice) : Number(product.price || 0);
+      items.push({ productId, title: product.title || product.name || 'Product', price: pPrice, qty, image: pickSize(product.image) || pickSize(product.images && product.images[0]) || null });
     }
     return { ...prev, items };
   });

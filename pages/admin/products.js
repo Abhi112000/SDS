@@ -46,16 +46,16 @@ export default function AdminProducts({ initial }){
   const [categories, setCategories] = useState([]);
   const toast = useToast();
   const [updatingFeatured, setUpdatingFeatured] = useState({});
-  const [form, setForm] = useState({ title: '', price: '', sku: '', category: '', stock: 9999, description: '', images: [], featuredImage: '' });
+  const [form, setForm] = useState({ title: '', price: '', sku: '', category: '', stock: 9999, description: '', images: [], featuredImage: '', originalPrice: '', onSale: false, salePrice: '', tags: [], saleHistory: [] });
   const [editingId, setEditingId] = useState(null);
   const [uploadProgress, setUploadProgress] = useState({});
 
   async function load(){
   const res = await fetch('/api/products', { credentials: 'include' });
     const data = await res.json();
-    // setProducts(data);
-    setProducts(data.products || []);
-
+    // Support both array response and paginated { products } shape
+    const products = Array.isArray(data) ? data : (data && data.products) || [];
+    setProducts(products);
   }
 
   async function loadCategories(){
@@ -115,18 +115,89 @@ export default function AdminProducts({ initial }){
     }
   const featuredUrl = form.featuredImage && typeof form.featuredImage === 'object' ? (form.featuredImage.url || '') : form.featuredImage;
   const firstImg = (form.images && form.images[0]) ? (typeof form.images[0] === 'object' ? (form.images[0].url || '') : form.images[0]) : '';
-  const payload = { ...form, price: Number(form.price || 0), originalPrice: form.originalPrice ? Number(form.originalPrice) : undefined, onSale: !!form.onSale, stock: Number(form.stock || 0), sku: finalSku, image: featuredUrl || firstImg || '' };
-    const url = editingId ? `/api/products?id=${editingId}` : '/api/products';
-    const method = editingId ? 'PUT' : 'POST';
+  // Build payload. For edits, only send fields that are intended to change to avoid overwriting images/originalPrice with empty values.
+  let payload;
+  if(editingId){
+    payload = {
+      // always allow title/price/sku/category/stock/description updates
+      title: form.title,
+      price: Number(form.price || 0),
+      sku: finalSku,
+      category: form.category,
+      stock: Number(form.stock || 0),
+      description: form.description,
+      onSale: !!form.onSale,
+      featured: !!form.featured
+    };
+    // include originalPrice only if provided (not empty string / undefined)
+    if(form.originalPrice !== undefined && form.originalPrice !== '') payload.originalPrice = Number(form.originalPrice || 0);
+    // include images array if present (length > 0)
+    if(Array.isArray(form.images) && form.images.length) payload.images = form.images;
+    // include featuredImage if present
+    if(form.featuredImage) payload.featuredImage = form.featuredImage;
+    // include legacy image field only if we have a value
+    const imgVal = featuredUrl || firstImg;
+    if(imgVal) payload.image = imgVal;
+
+    // sale handling: include salePrice if provided
+    if(form.onSale){
+      if(form.salePrice !== undefined && form.salePrice !== '') payload.salePrice = Number(form.salePrice || 0);
+      // ensure tags includes SALE!
+      const prevTags = (form.tags || (form._prev && form._prev.tags) || []);
+      const tags = Array.from(new Set([...(prevTags || []), 'SALE!']));
+      payload.tags = tags;
+      // append a saleHistory entry if this is a newly started sale
+      const prev = form._prev || {};
+      const wasOnSale = !!prev.onSale;
+      const history = Array.isArray(prev.saleHistory) ? [...prev.saleHistory] : [];
+      if(!wasOnSale){
+        history.push({ price: Number(form.salePrice || form.salePrice === 0 ? form.salePrice : form.price), startAt: new Date().toISOString(), active: true });
+      }
+      if(history.length) payload.saleHistory = history;
+    } else {
+      // turning off sale: clear sale flag and mark last saleHistory entry inactive
+      const prev = form._prev || {};
+      if(prev && Array.isArray(prev.saleHistory) && prev.saleHistory.length){
+        const history = prev.saleHistory.map((h,i)=> i===prev.saleHistory.length-1 ? ({ ...h, endAt: new Date().toISOString(), active: false }) : h );
+        payload.saleHistory = history;
+      }
+      // remove SALE! tag if present
+      const prevTags = (form.tags || (form._prev && form._prev.tags) || []);
+      payload.tags = (prevTags || []).filter(t => t !== 'SALE!');
+    }
+
+    const url = `/api/products?id=${editingId}`;
     try{
-      const res = await fetch(url, { method, credentials: 'include', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
+      const res = await fetch(url, { method: 'PUT', credentials: 'include', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
       const data = await res.json();
       if(!res.ok) { toast?.push?.({ message: data?.error || 'Failed to save product', type: 'error' }); return; }
-      toast?.push?.({ message: editingId ? 'Product updated' : 'Product created', type: 'success' });
+      toast?.push?.({ message: 'Product updated', type: 'success' });
       setForm({ title: '', price: '', sku: '', category: '', stock: 9999, description: '', images: [], featuredImage: '' });
       setEditingId(null);
       load();
-    }catch(err){ toast?.push?.({ message: 'Save failed: ' + (err.message||''), type: 'error' }); }
+      return;
+    }catch(err){ toast?.push?.({ message: 'Save failed: ' + (err.message||''), type: 'error' }); return; }
+  }
+
+  // Create new product flow (POST) — include all fields
+  payload = { ...form, price: Number(form.price || 0), originalPrice: form.originalPrice ? Number(form.originalPrice) : undefined, salePrice: form.salePrice ? Number(form.salePrice) : undefined, onSale: !!form.onSale, stock: Number(form.stock || 0), sku: finalSku, image: featuredUrl || firstImg || '' };
+  // if creating and onSale selected, add SALE! tag and initial saleHistory entry
+  if(payload.onSale){
+    payload.tags = Array.from(new Set([...(payload.tags||[]), 'SALE!']));
+    const histPrice = payload.salePrice || payload.price;
+    payload.saleHistory = [{ price: Number(histPrice||0), startAt: new Date().toISOString(), active: true }];
+  }
+  const url = '/api/products';
+  const method = 'POST';
+  try{
+    const res = await fetch(url, { method, credentials: 'include', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
+    const data = await res.json();
+    if(!res.ok) { toast?.push?.({ message: data?.error || 'Failed to save product', type: 'error' }); return; }
+    toast?.push?.({ message: 'Product created', type: 'success' });
+    setForm({ title: '', price: '', sku: '', category: '', stock: 9999, description: '', images: [], featuredImage: '' });
+    setEditingId(null);
+    load();
+  }catch(err){ toast?.push?.({ message: 'Save failed: ' + (err.message||''), type: 'error' }); }
     }
 
   return (
@@ -142,6 +213,12 @@ export default function AdminProducts({ initial }){
             <input value={form.price} onChange={e=>setForm({...form, price: e.target.value})} placeholder="Price" className="w-full p-2 border mb-2" />
             <input value={form.originalPrice || ''} onChange={e=>setForm({...form, originalPrice: e.target.value})} placeholder="Original price (optional)" className="w-full p-2 border mb-2" />
             <div className="mb-2"><label><input type="checkbox" checked={!!form.onSale} onChange={e=>setForm({...form, onSale: e.target.checked})} /> On sale</label></div>
+            {form.onSale && (
+              <div className="mb-2">
+                <input type="number" value={form.salePrice || ''} onChange={e=>setForm({...form, salePrice: e.target.value})} placeholder="Sale price" className="w-full p-2 border mb-2" />
+                <div className="text-xs text-gray-500">Checking this will tag product as <strong>SALE!</strong></div>
+              </div>
+            )}
             <input value={form.sku} onChange={e=>setForm({...form, sku: e.target.value})} placeholder="SKU" className="w-full p-2 border mb-2" />
             <select value={form.category} onChange={e=>setForm({...form, category: e.target.value})} className="w-full p-2 border mb-2">
               <option value="">Select category</option>
@@ -213,7 +290,7 @@ export default function AdminProducts({ initial }){
               </div>
             </div>
             <div className="mb-2"><label><input type="checkbox" checked={!!form.featured} onChange={e=>setForm({...form, featured: e.target.checked})} /> Featured</label></div>
-            <button className="px-4 py-2 btn-primary rounded">Create</button>
+            <button className="px-4 py-2 btn-primary rounded">{editingId ? 'Update' : 'Create'}</button>
           </form>
         </div>
         <div>
@@ -244,7 +321,28 @@ export default function AdminProducts({ initial }){
                           }finally{ setUpdatingFeatured(prev => { const n = { ...prev }; delete n[p._id]; return n; }); }
                         }} /> Featured
                       </label>
-                      <button onClick={()=>{ setEditingId(p._id); setForm({ title: p.title || '', price: p.price || '', sku: p.sku || '', category: p.category || '', stock: p.stock || 0, description: p.description || '', images: p.images || [], featured: !!p.featured }) }} className="px-2 py-1 mr-2">Edit</button>
+                      <button onClick={()=>{
+                        setEditingId(p._id);
+                        // populate the form with all relevant fields so edits don't wipe other values
+                                            setForm({
+                                              title: p.title || '',
+                                              price: p.price || '',
+                                              originalPrice: p.originalPrice !== undefined ? p.originalPrice : '',
+                                              salePrice: p.salePrice !== undefined ? p.salePrice : '',
+                                              sku: p.sku || '',
+                                              category: p.category || '',
+                                              stock: p.stock || 0,
+                                              description: p.description || '',
+                                              images: p.images || [],
+                                              featuredImage: p.featuredImage || (p.image ? (typeof p.image === 'string' ? p.image : (p.image.url || '')) : ''),
+                                              featured: !!p.featured,
+                                              onSale: !!p.onSale,
+                                              tags: p.tags || [],
+                                              saleHistory: p.saleHistory || [],
+                                              // keep a copy of previous product for change detection
+                                              _prev: p
+                                            });
+                      }} className="px-2 py-1 mr-2">Edit</button>
                       <button className="px-2 py-1" style={{ background: '#b91c1c', color: 'white', padding: '6px 10px', borderRadius: 6 }} onClick={async ()=>{ if(confirm('Delete?')){ await fetch('/api/products?id='+p._id,{ method: 'DELETE', credentials: 'include' }); load(); }}}>Delete</button>
                 </div>
               </div>
@@ -256,25 +354,11 @@ export default function AdminProducts({ initial }){
   );
 }
 
-// export async function getServerSideProps(ctx){
-//   const session = await getSession(ctx);
-//   if(!session || session.user.role !== 'admin') return { redirect: { destination: '/login', permanent: false } };
-//   // Don't serialize the full product list into the page HTML — fetch client-side to avoid large page data.
-//   // This reduces initial page payload and prevents Next.js large page data warnings.
-//   await dbConnect();
-//   return { props: {} };
-// }
-
-export async function getServerSideProps(ctx) {
-  const host = ctx.req.headers.host;  // works locally & on Vercel
-  const protocol = host.includes('localhost') ? 'http' : 'https';
-
-  const res = await fetch(`${protocol}://${host}/api/products`);
-  const data = await res.json();
-
-  return {
-    props: {
-      initial: data.products || []
-    }
-  };
+export async function getServerSideProps(ctx){
+  const session = await getSession(ctx);
+  if(!session || session.user.role !== 'admin') return { redirect: { destination: '/login', permanent: false } };
+  // Don't serialize the full product list into the page HTML — fetch client-side to avoid large page data.
+  // This reduces initial page payload and prevents Next.js large page data warnings.
+  await dbConnect();
+  return { props: {} };
 }

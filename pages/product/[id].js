@@ -24,7 +24,8 @@ export default function ProductPage({ product }){
 
   function addToCart(){
     const imgForCart = pickSize(product.image, 'card') || pickSize(product.images && product.images[0], 'card') || null;
-    add({ _id: product._id || product.sku || product.id, title: product.title || product.name, price, image: imgForCart });
+    const effectivePrice = ((product.onSale || (product.tags && product.tags.includes && product.tags.includes('SALE!'))) && product.salePrice) ? Number(product.salePrice) : price;
+    add({ _id: product._id || product.sku || product.id, title: product.title || product.name, price: effectivePrice, image: imgForCart }, Number(qty || 1));
     setAdded(true);
     setTimeout(()=>setAdded(false), 2000);
   }
@@ -99,14 +100,19 @@ export default function ProductPage({ product }){
           <div className="text-lg mb-4 text-muted">{product.subtitle || product.category || ''}</div>
 
           <div className="mb-4">
-            {product.originalPrice && product.originalPrice > price ? (
+            {((product.onSale || (product.tags && product.tags.includes && product.tags.includes('SALE!'))) && product.salePrice) ? (
+              <div className="flex items-center gap-3">
+                <div className="text-sm line-through text-gray-500">₹{price}</div>
+                <div className="text-2xl font-bold text-primary">₹{product.salePrice}</div>
+              </div>
+            ) : (product.originalPrice && product.originalPrice > price ? (
               <div className="flex items-center gap-3">
                 <div className="text-sm line-through text-gray-500">₹{product.originalPrice}</div>
                 <div className="text-2xl font-bold text-primary">₹{price}</div>
               </div>
             ) : (
               <div className="text-2xl font-bold text-primary">₹{price}</div>
-            )}
+            ))}
           </div>
 
           <div className="mb-4 text-sm text-muted">
