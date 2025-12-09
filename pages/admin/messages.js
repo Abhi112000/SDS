@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { useToast } from '@/components/Toast';
 import MessageRenderer from '../../components/MessageRenderer';
 import ReplyBox from '../../components/ReplyBox';
+import AdminSidebar from '@/components/AdminSidebar';
 
 const fetcher = url => fetch(url, { credentials: 'include' }).then(r => r.json());
 
@@ -34,9 +35,12 @@ export default function AdminMessages(){
 
   return (
     <div className="p-6">
-      <h1 className="text-2xl font-bold mb-4">Messages</h1>
-      <div className="space-y-3">
-        {messages.map(m=> (
+      <div className="grid md:grid-cols-4 gap-6">
+        <AdminSidebar />
+        <main className="md:col-span-3">
+          <h1 className="text-2xl font-bold mb-4">Messages</h1>
+          <div className="space-y-3">
+            {messages.map(m=> (
           <div key={m._id} className={`card ${m.read? 'opacity-60':''}`}>
             <div className="flex justify-between">
               <div>
@@ -64,7 +68,9 @@ export default function AdminMessages(){
               <ReplyBox messageId={m._id} onSend={(txt)=>{ replyTo(m._id, txt); }} loading={!!replyLoading[m._id]} />
             </div>
           </div>
-        ))}
+            ))}
+          </div>
+        </main>
       </div>
     </div>
   );

@@ -3,6 +3,7 @@ import { getSession } from 'next-auth/react';
 import dbConnect from '@/lib/mongodb';
 import Category from '@/models/Category';
 import { useToast } from '@/components/Toast';
+import AdminSidebar from '@/components/AdminSidebar';
 
 export default function AdminCategories({ initial = [] }){
   const [cats, setCats] = useState(initial || []);
@@ -43,25 +44,30 @@ export default function AdminCategories({ initial = [] }){
 
   return (
     <div className="p-6">
-      <div className="flex items-center justify-between mb-4">
-        <h1 className="text-2xl font-bold">Manage Categories</h1>
-        <a href="/admin" className="px-3 py-1 bg-gray-100 rounded">Back</a>
-      </div>
-      <div className="bg-white p-4 rounded shadow mb-4">
-        <form onSubmit={handleAdd} className="flex gap-2">
-          <input value={name} onChange={e=>setName(e.target.value)} placeholder="New category name" className="p-2 border rounded flex-1" />
-          <button className="px-3 py-1 bg-blue-600 text-white rounded" disabled={busy}>{busy? 'Adding...' : 'Add'}</button>
-        </form>
-      </div>
-      <div className="bg-white p-4 rounded shadow">
-        <ul>
-          {cats.map(c => (
-            <li key={c._id} className="py-2 border-b flex items-center justify-between">
-              <div>{c.name}</div>
-              <div><button className="px-2 py-1 bg-red-600 text-white rounded" onClick={()=>handleDelete(c._id)}>Delete</button></div>
-            </li>
-          ))}
-        </ul>
+      <div className="grid md:grid-cols-4 gap-6">
+        <AdminSidebar />
+        <main className="md:col-span-3">
+          <div className="flex items-center justify-between mb-4">
+            <h1 className="text-2xl font-bold">Manage Categories</h1>
+            <a href="/admin" className="px-3 py-1 bg-gray-100 rounded">Back</a>
+          </div>
+          <div className="bg-white p-4 rounded shadow mb-4">
+            <form onSubmit={handleAdd} className="flex gap-2">
+              <input value={name} onChange={e=>setName(e.target.value)} placeholder="New category name" className="p-2 border rounded flex-1" />
+              <button className="px-3 py-1 bg-blue-600 text-white rounded" disabled={busy}>{busy? 'Adding...' : 'Add'}</button>
+            </form>
+          </div>
+          <div className="bg-white p-4 rounded shadow">
+            <ul>
+              {cats.map(c => (
+                <li key={c._id} className="py-2 border-b flex items-center justify-between">
+                  <div>{c.name}</div>
+                  <div><button className="px-2 py-1 bg-red-600 text-white rounded" onClick={()=>handleDelete(c._id)}>Delete</button></div>
+                </li>
+              ))}
+            </ul>
+          </div>
+        </main>
       </div>
     </div>
   );

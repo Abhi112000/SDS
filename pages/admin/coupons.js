@@ -2,6 +2,7 @@ import { getSession } from 'next-auth/react';
 import useSWR from 'swr';
 import { useState } from 'react';
 import { useToast } from '@/components/Toast';
+import AdminSidebar from '@/components/AdminSidebar';
 
 const fetcher = url => fetch(url, { credentials: 'include' }).then(r=>r.json());
 
@@ -32,9 +33,12 @@ export default function AdminCoupons(){
 
   return (
     <div className="p-6">
-      <h1 className="text-2xl font-bold mb-4">Admin: Coupons</h1>
-      <div className="grid md:grid-cols-2 gap-6">
-        <div className="bg-white p-4 rounded shadow">
+      <div className="grid md:grid-cols-4 gap-6">
+        <AdminSidebar />
+        <main className="md:col-span-3">
+          <h1 className="text-2xl font-bold mb-4">Admin: Coupons</h1>
+          <div className="grid md:grid-cols-2 gap-6">
+            <div className="bg-white p-4 rounded shadow">
           <input value={form.code} onChange={e=>setForm({...form, code: e.target.value.toUpperCase()})} placeholder="Code" className="w-full p-2 border mb-2" />
           <select value={form.type} onChange={e=>setForm({...form, type: e.target.value})} className="w-full p-2 border mb-2">
             <option value="percent">Percent</option>
@@ -62,7 +66,9 @@ export default function AdminCoupons(){
               </div>
             ))}
           </div>
-        </div>
+            </div>
+          </div>
+        </main>
       </div>
     </div>
   );

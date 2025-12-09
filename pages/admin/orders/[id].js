@@ -5,6 +5,22 @@ import Message from '../../../models/Message';
 import { useState, useEffect } from 'react';
 // local toast handled via showToast; do not import default Toast (use ToastProvider/useToast elsewhere)
 import { useRouter } from 'next/router';
+import ReplyBox from '@/components/ReplyBox';
+
+function NewMessageForm({ onSend }){
+  const [subject, setSubject] = useState('');
+  const [text, setText] = useState('');
+  const [busy, setBusy] = useState(false);
+  return (
+    <div>
+      <input placeholder="Subject (optional)" value={subject} onChange={e=>setSubject(e.target.value)} className="w-full p-2 border mb-2" />
+      <textarea value={text} onChange={e=>setText(e.target.value)} className="w-full p-2 border mb-2" rows={4} />
+      <div className="flex justify-end">
+        <button disabled={busy} onClick={async ()=>{ setBusy(true); await onSend(subject, text); setBusy(false); setSubject(''); setText(''); }} className="px-3 py-1 btn-primary">Send</button>
+      </div>
+    </div>
+  );
+}
 
 export default function AdminOrderDetail({ initialOrder, initialMessages }){
   const router = useRouter();
@@ -24,9 +40,36 @@ export default function AdminOrderDetail({ initialOrder, initialMessages }){
 
   useEffect(()=>{ /* placeholder for any client-side refresh */ },[]);
 
+  async function loadMessages(){
+    try{
+      const res = await fetch('/api/messages', { credentials: 'include' });
+      const all = await res.json();
+      const list = Array.isArray(all) ? all.filter(m=> m.orderId === (order && order._id)) : [];
+      setMessages(list);
+    }catch(e){ console.warn('load messages failed', e); }
+  }
+
+  async function replyTo(id, text){
+    if(!text) return;
+    try{
+      await fetch('/api/messages/reply', { method: 'POST', credentials: 'include', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id, text }) });
+      await loadMessages();
+    }catch(e){ console.error('reply failed', e); }
+  }
+
+  async function createMessage(subject, text){
+    try{
+      if(!text) return;
+      await fetch('/api/messages', { method: 'POST', credentials: 'include', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ subject: subject || 'Admin message', text, orderId: order._id }) });
+      await loadMessages();
+    }catch(e){ console.error('create message failed', e); }
+  }
+
+  useEffect(()=>{ loadMessages(); },[]);
+
   return (
     <div className="p-6">
-      <button onClick={()=>router.push('/admin')} className="mb-4 px-3 py-1 border rounded">Back</button>
+          <button onClick={()=>router.back()} className="mb-4 px-3 py-1 border rounded">Back</button>
       <h1 className="text-2xl font-bold mb-4">Order {order._id}</h1>
       <div className="bg-white p-4 rounded shadow mb-4">
         <div><strong>Customer:</strong> {order.customerName || order.userName || order.customerEmail}</div>
@@ -204,7 +247,12 @@ export default function AdminOrderDetail({ initialOrder, initialMessages }){
         }} className="px-3 py-1 bg-blue-600 text-white rounded">{printing ? 'Printing…' : 'Download Invoice (PDF)'}</button>
       </div>
 
-      <Toast message={toast?.message} type={toast?.type} />
+      {toast && (
+        <div className={`fixed bottom-6 right-6 z-50 max-w-sm ${toast.type === 'error' ? 'bg-red-600 text-white' : (toast.type === 'info' ? 'bg-blue-600 text-white' : 'bg-green-600 text-white')} px-4 py-3 rounded-lg shadow-lg`} role="status" aria-live="polite">
+          <div className="font-medium">{toast.type === 'error' ? 'Error' : (toast.type === 'info' ? 'Info' : 'Success')}</div>
+          <div className="text-sm mt-1">{toast.message}</div>
+        </div>
+      )}
 
       {showInvoiceModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
@@ -273,16 +321,24 @@ export default function AdminOrderDetail({ initialOrder, initialMessages }){
         </div>
       )}
 
-      <h2 className="text-xl font-semibold mb-2">Related messages</h2>
-      <div className="space-y-3">
-        {messages.map(m=> (
-          <div key={m._id} className="card">
-            <div className="font-semibold">{m.subject}</div>
-            <div className="text-sm text-gray-600">From: {m.fromName} • {new Date(m.createdAt).toLocaleString()}</div>
-            <div className="mt-2 text-sm">{m.text}</div>
+          <h2 className="text-xl font-semibold mb-2">Related messages</h2>
+          <div className="space-y-3">
+            {messages.map(m=> (
+              <div key={m._id || m.id} className="card bg-white p-3 rounded shadow">
+                <div className="font-semibold">{m.subject || 'Message'}</div>
+                <div className="text-sm text-gray-600">From: {m.fromName || m.from || 'Unknown'} • {new Date(m.createdAt || m.updatedAt || Date.now()).toISOString().replace('T',' ').slice(0,19)}</div>
+                <div className="mt-2 text-sm">{m.text}</div>
+                <div className="mt-3">
+                  <ReplyBox messageId={m._id} onSend={(txt)=>{ replyTo(m._id, txt); }} />
+                </div>
+              </div>
+            ))}
           </div>
-        ))}
-      </div>
+
+          <div className="mt-6 bg-white p-4 rounded shadow">
+            <h3 className="font-semibold mb-2">Send new message (to user)</h3>
+            <NewMessageForm onSend={(subject, text)=> createMessage(subject, text)} />
+          </div>
     </div>
   );
 }

@@ -3,6 +3,7 @@ import { getSession } from 'next-auth/react';
 import dbConnect from '@/lib/mongodb';
 import Product from '@/models/Product';
 import { useToast } from '@/components/Toast';
+import AdminSidebar from '@/components/AdminSidebar';
 
 function formatCurrency(v){ return '₹' + (Number(v||0)).toFixed(2); }
 
@@ -47,7 +48,8 @@ export default function AdminInventory({ initial = [] }){
       const actual = Number(it.originalPrice||0);
       const profitPer = selling - actual;
       const totalPotential = profitPer * Number(it.stock || 0);
-      rows.push([it.title||'', it.sku||'', it.category||'', selling, actual, Number(it.stock||0), profitPer, totalPotential]);
+      const catName = (categories.find(c => String(c._id) === String(it.category)) || {}).name || it.category || '';
+      rows.push([it.title||'', it.sku||'', catName, selling, actual, Number(it.stock||0), profitPer, totalPotential]);
     }
     const csv = rows.map(r => r.map(c => '"'+String(c).replace(/"/g,'""')+'"').join(',')).join('\n');
     const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
@@ -63,7 +65,8 @@ export default function AdminInventory({ initial = [] }){
       const actual = Number(it.originalPrice||0);
       const profitPer = selling - actual;
       const totalPotential = profitPer * Number(it.stock || 0);
-      return `<tr><td>${it.title||''}</td><td>${it.sku||''}</td><td>${it.category||''}</td><td style="text-align:right">${selling.toFixed(2)}</td><td style="text-align:right">${actual.toFixed(2)}</td><td style="text-align:right">${Number(it.stock||0)}</td><td style="text-align:right">${profitPer.toFixed(2)}</td><td style="text-align:right">${totalPotential.toFixed(2)}</td></tr>`;
+      const catName = (categories.find(c => String(c._id) === String(it.category)) || {}).name || it.category || '';
+      return `<tr><td>${it.title||''}</td><td>${it.sku||''}</td><td>${catName}</td><td style="text-align:right">${selling.toFixed(2)}</td><td style="text-align:right">${actual.toFixed(2)}</td><td style="text-align:right">${Number(it.stock||0)}</td><td style="text-align:right">${profitPer.toFixed(2)}</td><td style="text-align:right">${totalPotential.toFixed(2)}</td></tr>`;
     }).join('');
     const html = `<!doctype html><html><head><meta charset="utf-8"><title>Inventory</title><style>table{width:100%;border-collapse:collapse}td,th{border:1px solid #ddd;padding:6px}</style></head><body><h2>Inventory</h2><table><thead><tr><th>Title</th><th>SKU</th><th>Category</th><th>Price</th><th>Actual</th><th>Stock</th><th>Profit/unit</th><th>Total potential</th></tr></thead><tbody>${rows}</tbody></table></body></html>`;
     const w = window.open('about:blank','inventory'); if(!w) { toast?.push?.({ message: 'Popup blocked', type: 'error' }); return; }
@@ -140,21 +143,24 @@ export default function AdminInventory({ initial = [] }){
 
   return (
     <div className="p-6">
-      <div className="flex items-center justify-between mb-4">
-        <h1 className="text-2xl font-bold">Inventory / Stock Management</h1>
-        <div className="space-x-2">
-          <a href="/admin" className="px-3 py-1 bg-gray-100 rounded">Back</a>
-          <button onClick={exportCSV} className="px-3 py-1 bg-gray-100 rounded">Download CSV</button>
-          <button onClick={openPrint} className="px-3 py-1 bg-gray-100 rounded">Print / PDF</button>
-        </div>
-      </div>
+      <div className="grid md:grid-cols-4 gap-6">
+        <AdminSidebar />
+        <main className="md:col-span-3">
+          <div className="flex items-center justify-between mb-4">
+            <h1 className="text-2xl font-bold">Inventory / Stock Management</h1>
+            <div className="space-x-2">
+              <a href="/admin" className="px-3 py-1 bg-gray-100 rounded">Back</a>
+              <button onClick={exportCSV} className="px-3 py-1 bg-gray-100 rounded">Download CSV</button>
+              <button onClick={openPrint} className="px-3 py-1 bg-gray-100 rounded">Print / PDF</button>
+            </div>
+          </div>
 
-      <div className="bg-white p-4 rounded shadow mb-4">
+          <div className="bg-white p-4 rounded shadow mb-4">
         <div className="flex gap-2 items-center">
           <input placeholder="Search by title or SKU" value={query} onChange={e=>setQuery(e.target.value)} className="p-2 border rounded flex-1" />
           <select value={categoryFilter} onChange={e=>setCategoryFilter(e.target.value)} className="p-2 border rounded">
             <option value="">All categories</option>
-            {categories.map(c => <option key={c._id} value={c.name}>{c.name}</option>)}
+            {categories.map(c => <option key={c._id} value={c._id}>{c.name}</option>)}
           </select>
         </div>
       </div>
@@ -174,7 +180,7 @@ export default function AdminInventory({ initial = [] }){
                 <tr key={it._id} className="border-t">
                   <td className="p-2">{it.title}</td>
                   <td className="p-2">{it.sku}</td>
-                  <td className="p-2">{it.category}</td>
+                  <td className="p-2">{(categories.find(c => String(c._id) === String(it.category)) || {}).name || it.category}</td>
                   <td className="p-2 text-right">{formatCurrency(selling)}</td>
                   <td className="p-2 text-right">{formatCurrency(actual)}</td>
                   <td className="p-2 text-right">{it.stock||0}</td>
@@ -213,7 +219,7 @@ export default function AdminInventory({ initial = [] }){
                 <label className="block text-sm">Category</label>
                 <select value={editValues.category} onChange={e=>setEditValues(prev=>({...prev,category:e.target.value}))} className="p-2 border rounded w-full">
                   <option value="">Select category</option>
-                  {categories.map(c => <option key={c._id} value={c.name}>{c.name}</option>)}
+                  {categories.map(c => <option key={c._id} value={c._id}>{c.name}</option>)}
                 </select>
               </div>
               <div>
@@ -280,6 +286,8 @@ export default function AdminInventory({ initial = [] }){
           </div>
         </div>
       )}
+        </main>
+      </div>
     </div>
   );
 }

@@ -11,6 +11,7 @@ import { useSession } from 'next-auth/react';
 import { useToast } from '@/components/Toast';
 import Pusher from 'pusher-js';
 import { mutate } from 'swr';
+import AdminSidebar from '@/components/AdminSidebar';
 
 // include credentials for admin APIs (session cookie) so server can authenticate requests
 const fetcher = url => fetch(url, { credentials: 'include' }).then(r => r.json());
@@ -321,8 +322,9 @@ export default function Admin({ dbError = false, errorMessage = '' }){
       </div>
     ) : (
     <div className="p-6">
-      <div className="grid grid-cols-1 gap-6">
-        <main>
+      <div className="grid md:grid-cols-4 gap-6">
+        <AdminSidebar />
+        <main className="md:col-span-3">
           <div className="flex items-center justify-between mb-4">
             <h1 className="text-2xl font-bold">Admin Dashboard</h1>
             <div className="space-x-2">
@@ -333,10 +335,24 @@ export default function Admin({ dbError = false, errorMessage = '' }){
             </div>
           </div>
       {/* Quick add removed — use /admin/products for full product creation */}
-      <div className="grid grid-cols-3 gap-4 mb-6">
-        <div className="bg-white p-4 rounded shadow">Total Orders: {analytics?.orders ?? orders?.length ?? '-'}</div>
+      <div className="grid grid-cols-4 gap-4 mb-6">
+        <div className="bg-white p-4 rounded shadow">Total Orders: {Array.isArray(orders) ? orders.length : (analytics?.orders ?? '-')}</div>
         <div className="bg-white p-4 rounded shadow">Total Products: {productsList ? productsList.length : '-'}</div>
-        <div className="bg-white p-4 rounded shadow">Total Users: {analytics?.users ?? '-'}</div>
+        <div className="bg-white p-4 rounded shadow">Total Users: {Array.isArray(users?.users) ? users.users.length : (analytics?.users ?? '-')}</div>
+        <div className="bg-white p-4 rounded shadow">
+          <div className="font-medium">New orders (24h)</div>
+          <div className="text-sm mt-2">
+            {(() => {
+              try{
+                const since = Date.now() - (24 * 60 * 60 * 1000);
+                const userNew = Array.isArray(orders) ? orders.filter(o => new Date(o.createdAt).getTime() >= since).length : 0;
+                const guestNew = Array.isArray(guestOrders) ? guestOrders.filter(o => new Date(o.createdAt).getTime() >= since).length : 0;
+                const totalNew = userNew + guestNew;
+                return (<div><div>Total: {totalNew}</div><div className="text-xs text-gray-600">User orders: {userNew}</div><div className="text-xs text-gray-600">Guest orders: {guestNew}</div></div>);
+              }catch(e){ return <div>-</div>; }
+            })()}
+          </div>
+        </div>
       </div>
 
       <section className="grid md:grid-cols-2 gap-6">
@@ -391,13 +407,13 @@ export default function Admin({ dbError = false, errorMessage = '' }){
       <section className="mt-6">
         <h3 className="text-lg font-semibold mb-2">Invoices History</h3>
         <div className="bg-white p-4 rounded shadow">
-          <div className="mb-3 text-sm text-gray-600">Saved invoices created from admin or orders. Click View to open printable invoice.</div>
+            <div className="mb-3 text-sm text-gray-600">Saved invoices created from admin or orders. Click View to open printable invoice.</div>
           <ul>
             {invoices?.invoices?.length ? invoices.invoices.map(inv => (
               <li key={inv._id} className="py-2 border-b flex items-center justify-between">
                 <div>
                   <div className="text-sm">{inv.invoiceId} — ₹{(inv.total||0).toFixed(2)}</div>
-                  <div className="text-xs text-gray-500">{new Date(inv.createdAt).toLocaleString()} — {inv.type}</div>
+                  <div className="text-xs text-gray-500">{new Date(inv.createdAt).toISOString().replace('T',' ').slice(0,19)} — {inv.type}</div>
                 </div>
                 <div className="flex items-center gap-2">
                   <button onClick={() => setSelectedInvoice(inv)} className="px-2 py-1 bg-gray-100 rounded text-sm">View</button>
@@ -552,7 +568,7 @@ export default function Admin({ dbError = false, errorMessage = '' }){
                 <div>
                   <div className="text-sm">{g._id}</div>
                   <div className="text-sm text-gray-700">{g.name} — ₹{g.subtotal}</div>
-                  <div className="text-xs text-gray-500">{new Date(g.createdAt || g.createdAt).toLocaleString()}</div>
+                  <div className="text-xs text-gray-500">{new Date(g.createdAt || g.createdAt).toISOString().replace('T',' ').slice(0,19)}</div>
                 </div>
                 <div>
                   <button onClick={() => setSelectedOrder(g)} className="px-2 py-1 bg-gray-100 rounded text-sm">View details</button>
@@ -578,7 +594,7 @@ export default function Admin({ dbError = false, errorMessage = '' }){
                 <div><strong>Phone:</strong> {selectedOrder.phone}</div>
                 <div><strong>Email:</strong> {selectedOrder.email}</div>
                 <div><strong>Address:</strong> {selectedOrder.address}</div>
-                <div><strong>Placed:</strong> {new Date(selectedOrder.createdAt).toLocaleString()}</div>
+                <div><strong>Placed:</strong> {selectedOrder?.createdAt ? new Date(selectedOrder.createdAt).toISOString().replace('T',' ').slice(0,19) : ''}</div>
               </div>
 
               {/* Items table with line totals */}
@@ -654,7 +670,7 @@ export default function Admin({ dbError = false, errorMessage = '' }){
             </div>
             <div className="text-sm text-gray-700">
               <div className="mb-3">
-                <div><strong>Saved:</strong> {new Date(selectedInvoice.createdAt).toLocaleString()}</div>
+                <div><strong>Saved:</strong> {selectedInvoice?.createdAt ? new Date(selectedInvoice.createdAt).toISOString().replace('T',' ').slice(0,19) : ''}</div>
                 <div><strong>Type:</strong> {selectedInvoice.type}</div>
                 <div><strong>Total:</strong> ₹{(selectedInvoice.total||0).toFixed(2)}</div>
               </div>

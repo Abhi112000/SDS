@@ -1,4 +1,5 @@
 import { getSession } from 'next-auth/react';
+import AdminSidebar from '@/components/AdminSidebar';
 import { useState } from 'react';
 import { useToast } from '@/components/Toast';
 
@@ -43,17 +44,22 @@ export default function UploadTest(){
 
   return (
     <div className="p-6">
-      <h1 className="text-xl font-bold mb-4">Admin upload test</h1>
-      <div className="mb-3">
-        <input type="file" accept="image/*" onChange={e=>setFile(e.target.files?.[0]||null)} />
+      <div className="grid md:grid-cols-4 gap-6">
+        <AdminSidebar />
+        <main className="md:col-span-3">
+          <h1 className="text-xl font-bold mb-4">Admin upload test</h1>
+          <div className="mb-3">
+            <input type="file" accept="image/*" onChange={e=>setFile(e.target.files?.[0]||null)} />
+          </div>
+          <div className="mb-3">
+            <button className="px-3 py-1 bg-blue-600 text-white rounded" onClick={upload}>Upload</button>
+          </div>
+          <div className="w-full bg-gray-200 h-2 rounded overflow-hidden">
+            <div style={{ width: progress + '%'}} className="bg-green-600 h-2"></div>
+          </div>
+          <p className="text-sm mt-2">Progress: {progress}%</p>
+        </main>
       </div>
-      <div className="mb-3">
-        <button className="px-3 py-1 bg-blue-600 text-white rounded" onClick={upload}>Upload</button>
-      </div>
-      <div className="w-full bg-gray-200 h-2 rounded overflow-hidden">
-        <div style={{ width: progress + '%'}} className="bg-green-600 h-2"></div>
-      </div>
-      <p className="text-sm mt-2">Progress: {progress}%</p>
     </div>
   );
 }

@@ -3,6 +3,7 @@ import dbConnect from '@/lib/mongodb';
 import Product from '../../models/Product';
 import { useEffect, useState } from 'react';
 import { useToast } from '@/components/Toast';
+import AdminSidebar from '@/components/AdminSidebar';
 
 // client-side resize helper — returns a Blob
 async function resizeImage(file, maxWidth = 1200, maxHeight = 1200, quality = 0.8){
@@ -62,6 +63,20 @@ export default function AdminProducts({ initial }){
     try{ const r = await fetch('/api/admin/categories'); const c = await r.json(); setCategories(c || []); }catch(e){ console.warn('load categories failed', e); }
   }
 
+  function makeThree(src){
+    if(!src) return 'XXX';
+    const s = String(src).toUpperCase().replace(/[^A-Z0-9]/g,'');
+    if(s.length >= 3) return s.slice(0,3);
+    return (s + 'XXX').slice(0,3);
+  }
+
+  function generateSku(title, categoryId){
+    const a = makeThree(title);
+    const cat = categories.find(c => String(c._id || c.id) === String(categoryId));
+    const b = makeThree(cat ? (cat.name || cat.title || '') : '');
+    return `${a}-${b}`;
+  }
+
   useEffect(()=>{ load() },[]);
   useEffect(()=>{ loadCategories(); },[]);
 
@@ -104,14 +119,79 @@ export default function AdminProducts({ initial }){
       return null;
     }
   }
+
+  // Handlers extracted from JSX to avoid nested braces inside markup
+  async function handleFeaturedFileChange(e){
+    const f = e.target.files && e.target.files[0];
+    if(!f) return;
+    const tmpId = Date.now() + '-' + Math.random().toString(36).slice(2,8);
+    try{
+      toast?.push?.({ message: 'Uploading featured image...', type: 'info' });
+      setUploadProgress(prev=>({ ...prev, [tmpId]: 0 }));
+      const resized = await resizeImage(f, 2000, 2000, 0.9);
+      const fileToUpload = new File([resized], f.name || 'img.jpg', { type: resized.type });
+      const body = await uploadImage(fileToUpload, pct => setUploadProgress(prev=>({ ...prev, [tmpId]: pct })));
+      if(body){
+        const public_id = body.raw?.public_id || body.public_id;
+        const url = body.secure_url || body.url;
+        setForm(prev => ({ ...prev, featuredImage: { public_id, url } }));
+        toast?.push?.({ message: 'Featured image uploaded', type: 'success' });
+      }
+    }catch(err){ console.error('featured image process failed', err); toast?.push?.({ message: 'Failed to process featured image: ' + (err?.message||''), type: 'error' }); }
+    setUploadProgress(prev => { const n = { ...prev }; delete n[tmpId]; return n; });
+    if(e.currentTarget) e.currentTarget.value = '';
+  }
+
+  async function handleAlbumFilesChange(e){
+    const files = Array.from(e.target.files || []);
+    if(files.length === 0) return;
+    const added = [];
+    for(const file of files){
+      const tmpId = Date.now() + '-' + Math.random().toString(36).slice(2,8);
+      try{
+        toast?.push?.({ message: 'Uploading image...', type: 'info' });
+        setUploadProgress(prev=>({ ...prev, [tmpId]: 0 }));
+        const resized = await resizeImage(file, 2000, 2000, 0.9);
+        const fileToUpload = new File([resized], file.name || 'img.jpg', { type: resized.type });
+        const body = await uploadImage(fileToUpload, pct => setUploadProgress(prev=>({ ...prev, [tmpId]: pct })));
+        if(body){
+          const public_id = body.raw?.public_id || body.public_id;
+          const url = body.secure_url || body.url;
+          added.push({ public_id, url });
+          toast?.push?.({ message: 'Image uploaded', type: 'success' });
+        }
+      }catch(err){ console.error('image upload failed', err); toast?.push?.({ message: 'Failed to process image: ' + (err?.message||''), type: 'error' }); }
+      setUploadProgress(prev => { const n = { ...prev }; delete n[tmpId]; return n; });
+    }
+    if(added.length) setForm(prev => ({ ...prev, images: [...(prev.images||[]), ...added] }));
+    if(e.currentTarget) e.currentTarget.value = '';
+  }
+
+  // Toggle featured flag for a product (extracted from inline JSX)
+  async function handleToggleFeatured(productId, value){
+    const v = value;
+    // optimistic update
+    setProducts(prev => prev.map(it => it._id === productId ? { ...it, featured: v } : it));
+    setUpdatingFeatured(prev => ({ ...prev, [productId]: true }));
+    toast?.push?.({ message: 'Updating featured...', type: 'info' });
+    try{
+      const r = await fetch('/api/products?id='+productId, { method: 'PUT', credentials: 'include', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ featured: v }) });
+      if(!r.ok) throw new Error('update failed');
+      toast?.push?.({ message: 'Featured updated', type: 'success' });
+      load();
+    }catch(err){
+      // revert
+      setProducts(prev => prev.map(it => it._id === productId ? { ...it, featured: !v } : it));
+      toast?.push?.({ message: 'Failed to update featured: ' + (err.message || 'error'), type: 'error' });
+    }finally{ setUpdatingFeatured(prev => { const n = { ...prev }; delete n[productId]; return n; }); }
+  }
   
   async function handleCreate(e){
     e.preventDefault();
-    // ensure SKU
-    let finalSku = form.sku && form.sku.trim() ? form.sku.trim() : '';
+    // ensure SKU: auto-generate as 3 letters of product name - 3 letters of category (CAPS)
+    let finalSku = form.sku && form.sku.trim() ? form.sku.trim().toUpperCase() : '';
     if(!finalSku){
-      const slug = (form.title + ' ' + (form.category||'')).toLowerCase().replace(/[^a-z0-9]+/g,'-').replace(/(^-|-$)/g,'');
-      finalSku = (slug || 'item') + '-' + String(Date.now()).slice(-5);
+      finalSku = generateSku(form.title || '', form.category);
     }
   const featuredUrl = form.featuredImage && typeof form.featuredImage === 'object' ? (form.featuredImage.url || '') : form.featuredImage;
   const firstImg = (form.images && form.images[0]) ? (typeof form.images[0] === 'object' ? (form.images[0].url || '') : form.images[0]) : '';
@@ -180,7 +260,7 @@ export default function AdminProducts({ initial }){
   }
 
   // Create new product flow (POST) — include all fields
-  payload = { ...form, price: Number(form.price || 0), originalPrice: form.originalPrice ? Number(form.originalPrice) : undefined, salePrice: form.salePrice ? Number(form.salePrice) : undefined, onSale: !!form.onSale, stock: Number(form.stock || 0), sku: finalSku, image: featuredUrl || firstImg || '' };
+  payload = { ...form, price: Number(form.price || 0), originalPrice: form.originalPrice ? Number(form.originalPrice) : undefined, salePrice: form.salePrice ? Number(form.salePrice) : undefined, onSale: !!form.onSale, stock: Number(form.stock || 0), sku: finalSku.toUpperCase(), category: form.category || '', image: featuredUrl || firstImg || '' };
   // if creating and onSale selected, add SALE! tag and initial saleHistory entry
   if(payload.onSale){
     payload.tags = Array.from(new Set([...(payload.tags||[]), 'SALE!']));
@@ -202,153 +282,109 @@ export default function AdminProducts({ initial }){
 
   return (
     <div className="p-6">
-      <div className="flex items-center justify-between mb-4">
-        <h1 className="text-2xl font-bold">Admin: Products</h1>
-        <a href="/admin" className="px-3 py-1 bg-gray-100 rounded">Back to dashboard</a>
-      </div>
-      <div className="grid md:grid-cols-2 gap-6">
-        <div>
-          <form onSubmit={handleCreate} className="bg-white p-4 rounded shadow">
-            <input value={form.title} onChange={e=>setForm({...form, title: e.target.value})} placeholder="Title" className="w-full p-2 border mb-2" />
-            <input value={form.price} onChange={e=>setForm({...form, price: e.target.value})} placeholder="Price" className="w-full p-2 border mb-2" />
-            <input value={form.originalPrice || ''} onChange={e=>setForm({...form, originalPrice: e.target.value})} placeholder="Original price (optional)" className="w-full p-2 border mb-2" />
-            <div className="mb-2"><label><input type="checkbox" checked={!!form.onSale} onChange={e=>setForm({...form, onSale: e.target.checked})} /> On sale</label></div>
-            {form.onSale && (
-              <div className="mb-2">
-                <input type="number" value={form.salePrice || ''} onChange={e=>setForm({...form, salePrice: e.target.value})} placeholder="Sale price" className="w-full p-2 border mb-2" />
-                <div className="text-xs text-gray-500">Checking this will tag product as <strong>SALE!</strong></div>
-              </div>
-            )}
-            <input value={form.sku} onChange={e=>setForm({...form, sku: e.target.value})} placeholder="SKU" className="w-full p-2 border mb-2" />
-            <select value={form.category} onChange={e=>setForm({...form, category: e.target.value})} className="w-full p-2 border mb-2">
-              <option value="">Select category</option>
-              {categories.map(c => (<option key={c._id} value={c.name}>{c.name}</option>))}
-            </select>
-            <input value={form.stock} onChange={e=>setForm({...form, stock: e.target.value})} placeholder="Stock" className="w-full p-2 border mb-2" />
-            <textarea value={form.description} onChange={e=>setForm({...form, description: e.target.value})} placeholder="Description" className="w-full p-2 border mb-2" />
-            <div className="mb-2">
-              <label className="block mb-1">Featured image (main)</label>
-              <div className="flex items-center gap-3 mb-2">
-                <input type="file" accept="image/*" onChange={async e=>{
-                  const f = e.target.files && e.target.files[0];
-                  if(!f) return;
-                  const tmpId = Date.now() + '-' + Math.random().toString(36).slice(2,8);
-                  try{
-                    toast?.push?.({ message: 'Uploading featured image...', type: 'info' });
-                    setUploadProgress(prev=>({ ...prev, [tmpId]: 0 }));
-                    // resize to a reasonable max for original upload
-                    const resized = await resizeImage(f, 2000, 2000, 0.9);
-                    const fileToUpload = new File([resized], f.name || 'img.jpg', { type: resized.type });
-                    const body = await uploadImage(fileToUpload, pct => setUploadProgress(prev=>({ ...prev, [tmpId]: pct })));
-                    if(body){
-                      const public_id = body.raw?.public_id || body.public_id;
-                      const url = body.secure_url || body.url;
-                      setForm(prev => ({ ...prev, featuredImage: { public_id, url } }));
-                      toast?.push?.({ message: 'Featured image uploaded', type: 'success' });
-                    }
-                  }catch(err){ console.error('featured image process failed', err); toast?.push?.({ message: 'Failed to process featured image: ' + (err?.message||''), type: 'error' }); }
-                  setUploadProgress(prev => { const n = { ...prev }; delete n[tmpId]; return n; });
-                  // clear input value so same file can be picked again if needed
-                  if(e.currentTarget) e.currentTarget.value = '';
-                }} />
-                {form.featuredImage ? (<img src={typeof form.featuredImage === 'string' ? form.featuredImage : (form.featuredImage?.url || '')} className="w-20 h-20 object-cover rounded" />) : (<div className="w-20 h-20 bg-gray-100 rounded flex items-center justify-center text-sm text-gray-500">No image</div>)}
-              </div>
+      <div className="grid md:grid-cols-4 gap-6">
+        <AdminSidebar />
+        <main className="md:col-span-3">
+          <div className="flex items-center justify-between mb-4">
+            <h1 className="text-2xl font-bold">Admin: Products</h1>
+            <a href="/admin" className="px-3 py-1 bg-gray-100 rounded">Back to dashboard</a>
+          </div>
 
-              <label className="block mb-1">Product album (multiple)</label>
-              <input type="file" accept="image/*" multiple onChange={async e=>{
-                const files = Array.from(e.target.files || []);
-                if(files.length === 0) return;
-                const added = [];
-                for(const file of files){
-                  const tmpId = Date.now() + '-' + Math.random().toString(36).slice(2,8);
-                  try{
-                    toast?.push?.({ message: 'Uploading image...', type: 'info' });
-                    setUploadProgress(prev=>({ ...prev, [tmpId]: 0 }));
-                    const resized = await resizeImage(file, 2000, 2000, 0.9);
-                    const fileToUpload = new File([resized], file.name || 'img.jpg', { type: resized.type });
-                    const body = await uploadImage(fileToUpload, pct => setUploadProgress(prev=>({ ...prev, [tmpId]: pct })));
-                    if(body){
-                      const public_id = body.raw?.public_id || body.public_id;
-                      const url = body.secure_url || body.url;
-                      added.push({ public_id, url });
-                      toast?.push?.({ message: 'Image uploaded', type: 'success' });
-                    }
-                  }catch(err){ console.error('image upload failed', err); toast?.push?.({ message: 'Failed to process image: ' + (err?.message||''), type: 'error' }); }
-                  setUploadProgress(prev => { const n = { ...prev }; delete n[tmpId]; return n; });
-                }
-                if(added.length) setForm(prev => ({ ...prev, images: [...(prev.images||[]), ...added] }));
-                if(e.currentTarget) e.currentTarget.value = '';
-              }} />
+          <div className="grid md:grid-cols-2 gap-6">
+            <div className="bg-white p-4 rounded shadow">
+              <h2 className="text-lg font-semibold mb-3">Create / Edit Product</h2>
+              <form onSubmit={handleCreate} className="space-y-3">
+                <div>
+                  <label className="block text-sm font-medium">Title</label>
+                  <input value={form.title} onChange={e=>setForm(f=>({...f, title: e.target.value}))} className="w-full p-2 border rounded" />
+                </div>
 
-              <div className="flex gap-2 mt-2 items-center">
-                {(form.images||[]).map((u,i)=> (
-                  <div key={i} className="relative">
-                    <img src={typeof u === 'string' ? u : (u.url || u.card || u.large || u.thumb || '')} className="w-16 h-16 object-cover rounded" />
-                    <button type="button" onClick={() => setForm(prev=>({ ...prev, images: prev.images.filter((_,idx)=> idx !== i) }))} className="absolute -top-2 -right-2 bg-red-600 text-white rounded-full w-5 h-5 text-xs leading-5">×</button>
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-sm">Price</label>
+                    <input value={form.price} onChange={e=>setForm(f=>({...f, price: e.target.value}))} className="w-full p-2 border rounded" />
+                  </div>
+                  <div>
+                    <label className="block text-sm">Original price (optional)</label>
+                    <input value={form.originalPrice} onChange={e=>setForm(f=>({...f, originalPrice: e.target.value}))} className="w-full p-2 border rounded" />
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-sm">SKU</label>
+                    <input value={form.sku} onChange={e=>setForm(f=>({...f, sku: e.target.value}))} className="w-full p-2 border rounded" />
+                  </div>
+                  <div>
+                    <label className="block text-sm">Stock</label>
+                    <input type="number" value={form.stock} onChange={e=>setForm(f=>({...f, stock: e.target.value}))} className="w-full p-2 border rounded" />
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-sm">Category</label>
+                  <select value={form.category} onChange={e=>setForm(f=>({...f, category: e.target.value}))} className="w-full p-2 border rounded">
+                    <option value="">-- choose --</option>
+                    {categories.map(c => (<option key={c._id || c.id} value={c._id || c.id}>{c.name || c.title || c}</option>))}
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-sm">Description</label>
+                  <textarea value={form.description} onChange={e=>setForm(f=>({...f, description: e.target.value}))} className="w-full p-2 border rounded" rows={4}></textarea>
+                </div>
+
+                <div>
+                  <label className="block text-sm">Featured image</label>
+                  <input type="file" accept="image/*" onChange={handleFeaturedFileChange} />
+                  {form.featuredImage && (typeof form.featuredImage === 'object' ? form.featuredImage.url : form.featuredImage) && (
+                    <div className="mt-2"><img src={(form.featuredImage && form.featuredImage.url) || form.featuredImage} alt="featured" className="h-24 object-contain" /></div>
+                  )}
+                </div>
+
+                <div>
+                  <label className="block text-sm">Album images</label>
+                  <input type="file" accept="image/*" multiple onChange={handleAlbumFilesChange} />
+                  {Array.isArray(form.images) && form.images.length > 0 && (
+                    <div className="mt-2 flex gap-2 flex-wrap">{form.images.map((im,idx)=>(<img key={idx} src={im.url || im} alt={`img-${idx}`} className="h-16 object-contain" />))}</div>
+                  )}
+                </div>
+
+                <div className="flex items-center gap-3">
+                  <label className="flex items-center gap-2"><input type="checkbox" checked={form.onSale} onChange={e=>setForm(f=>({...f, onSale: e.target.checked}))} /> On Sale</label>
+                  {form.onSale && (<input value={form.salePrice} onChange={e=>setForm(f=>({...f, salePrice: e.target.value}))} placeholder="Sale price" className="p-2 border rounded" />)}
+                </div>
+
+                <div className="flex gap-2">
+                  <button className="px-4 py-2 bg-blue-600 text-white rounded" type="submit">{editingId ? 'Save changes' : 'Create product'}</button>
+                  {editingId && <button type="button" onClick={()=>{ setEditingId(null); setForm({ title: '', price: '', sku: '', category: '', stock: 9999, description: '', images: [], featuredImage: '' }); }} className="px-3 py-2 border rounded">Cancel</button>}
+                </div>
+              </form>
+            </div>
+
+            <div className="bg-white p-4 rounded shadow">
+              <div className="space-y-3">
+                {products.map(p => (
+                  <div key={p._id} className="p-3 rounded shadow flex items-center justify-between">
+                    <div>
+                      <div className="font-medium">{p.title}</div>
+                      <div className="text-sm text-gray-600">
+                        SKU: {p.sku || '—'} • Price: ₹{Number(p.price||0).toFixed(2)} • Category: {(() => {
+                          const cat = categories.find(c => String(c._id || c.id) === String(p.category));
+                          return cat ? (cat.name || cat.title || String(p.category)) : (p.category || '—');
+                        })()}
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <button onClick={()=>{ setEditingId(p._id); setForm({ ...p, price: p.price, originalPrice: p.originalPrice, salePrice: p.salePrice, sku: (p.sku||'').toUpperCase(), category: p.category || '', _prev: p }); window.scrollTo({ top: 0, behavior: 'smooth' }); }} className="px-2 py-1 border rounded">Edit</button>
+                      <button onClick={async ()=>{ if(!confirm('Delete this product?')) return; await fetch('/api/products?id='+p._id, { method: 'DELETE', credentials: 'include' }); load(); }} className="px-2 py-1 border rounded text-red-600">Delete</button>
+                    </div>
                   </div>
                 ))}
               </div>
             </div>
-            <div className="mb-2"><label><input type="checkbox" checked={!!form.featured} onChange={e=>setForm({...form, featured: e.target.checked})} /> Featured</label></div>
-            <button className="px-4 py-2 btn-primary rounded">{editingId ? 'Update' : 'Create'}</button>
-          </form>
-        </div>
-        <div>
-          <div className="space-y-3">
-            {products.map(p=> (
-              <div key={p._id} className="bg-white p-3 rounded shadow flex justify-between items-center">
-                <div>
-                      <div className="font-medium">{p.title} {p.featured? <span className="ml-2 text-xs bg-yellow-100 px-2 py-0.5 rounded">Featured</span>:null}</div>
-                      <div className="text-sm text-gray-500">₹{p.price} • {p.category}</div>
-                </div>
-                <div className="flex items-center gap-2">
-                      <label className="flex items-center gap-2 mr-2">
-                        <input type="checkbox" checked={!!p.featured} disabled={!!updatingFeatured[p._id]} onChange={async (e) => {
-                          const v = e.target.checked;
-                          // optimistic update
-                          setProducts(prev => prev.map(it => it._id === p._id ? { ...it, featured: v } : it));
-                          setUpdatingFeatured(prev => ({ ...prev, [p._id]: true }));
-                          toast?.push?.({ message: 'Updating featured...', type: 'info' });
-                          try{
-                            const r = await fetch('/api/products?id='+p._id, { method: 'PUT', credentials: 'include', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ featured: v }) });
-                            if(!r.ok) throw new Error('update failed');
-                            toast?.push?.({ message: 'Featured updated', type: 'success' });
-                            load();
-                          }catch(err){
-                            // revert
-                            setProducts(prev => prev.map(it => it._id === p._id ? { ...it, featured: !v } : it));
-                            toast?.push?.({ message: 'Failed to update featured: ' + (err.message || 'error'), type: 'error' });
-                          }finally{ setUpdatingFeatured(prev => { const n = { ...prev }; delete n[p._id]; return n; }); }
-                        }} /> Featured
-                      </label>
-                      <button onClick={()=>{
-                        setEditingId(p._id);
-                        // populate the form with all relevant fields so edits don't wipe other values
-                                            setForm({
-                                              title: p.title || '',
-                                              price: p.price || '',
-                                              originalPrice: p.originalPrice !== undefined ? p.originalPrice : '',
-                                              salePrice: p.salePrice !== undefined ? p.salePrice : '',
-                                              sku: p.sku || '',
-                                              category: p.category || '',
-                                              stock: p.stock || 0,
-                                              description: p.description || '',
-                                              images: p.images || [],
-                                              featuredImage: p.featuredImage || (p.image ? (typeof p.image === 'string' ? p.image : (p.image.url || '')) : ''),
-                                              featured: !!p.featured,
-                                              onSale: !!p.onSale,
-                                              tags: p.tags || [],
-                                              saleHistory: p.saleHistory || [],
-                                              // keep a copy of previous product for change detection
-                                              _prev: p
-                                            });
-                      }} className="px-2 py-1 mr-2">Edit</button>
-                      <button className="px-2 py-1" style={{ background: '#b91c1c', color: 'white', padding: '6px 10px', borderRadius: 6 }} onClick={async ()=>{ if(confirm('Delete?')){ await fetch('/api/products?id='+p._id,{ method: 'DELETE', credentials: 'include' }); load(); }}}>Delete</button>
-                </div>
-              </div>
-            ))}
           </div>
-        </div>
+        </main>
       </div>
     </div>
   );

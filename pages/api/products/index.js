@@ -1,5 +1,6 @@
 import dbConnect from '@/lib/mongodb';
 import Product from '../../../models/Product';
+import Inventory from '@/models/Inventory';
 import { getToken } from 'next-auth/jwt';
 import { getServerSession } from 'next-auth/next';
 import { authOptions } from '../auth/[...nextauth]';
@@ -56,6 +57,22 @@ export default async function handler(req,res){
       body.saleHistory = Array.isArray(body.saleHistory) && body.saleHistory.length ? body.saleHistory : [{ price: Number(histPrice || 0), startAt: new Date().toISOString(), active: true }];
     }
     const p = await Product.create(body);
+    try{
+      // ensure an Inventory record exists for search and sales mapping
+      const existing = await Inventory.findOne({ $or: [ { sku: p.sku }, { name: p.title } ] }).lean();
+      if(!existing){
+        // create minimal inventory record
+        const invDoc = await Inventory.create({
+          sku: p.sku,
+          name: p.title,
+          category: p.category || '',
+          sellingPrice: p.price != null ? require('mongoose').Types.Decimal128.fromString(Number(p.price || 0).toFixed(2)) : require('mongoose').Types.Decimal128.fromString('0'),
+          costPrice: require('mongoose').Types.Decimal128.fromString('0'),
+          stock: p.stock || 0,
+          minStockLevel: 0
+        });
+      }
+    }catch(e){ console.warn('ensure inventory failed', e && e.message); }
     return res.status(201).json(p);
   }
 

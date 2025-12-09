@@ -55,6 +55,8 @@ export const authOptions = {
     strategy: "jwt",
   },
   secret: process.env.NEXTAUTH_SECRET || 'dev-secret-change-me',
+  // enable verbose debug logs in development to help diagnose client/server session fetch issues
+  debug: process.env.NODE_ENV !== 'production',
 
   callbacks: {
     async jwt({ token, user }) {
