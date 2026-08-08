@@ -6,6 +6,7 @@ const UserSchema = new mongoose.Schema({
   passwordHash: { type: String },
   googleId: { type: String },
   phone: { type: String, default: '' },
+  whatsapp: { type: String, default: '' },
   address: { type: String, default: '' },
   locationUrl: { type: String, default: '' },
   resetToken: { type: String },

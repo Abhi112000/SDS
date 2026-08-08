@@ -1,3 +1,4 @@
+import Link from 'next/link';
 import { useState } from 'react';
 import { useToast } from '@/components/Toast';
 import Breadcrumbs from '../components/Breadcrumbs';
@@ -13,27 +14,75 @@ export default function Contact(){
     toast?.push?.({ message: 'Message sent', type: 'success' });
   }
   return (
-    <div>
-      <h1 className="text-2xl font-bold mb-4">Contact</h1>
-  <Breadcrumbs />
-  <button onClick={() => router.back()} className="mb-4 px-4 py-2 btn-secondary rounded">Back</button>
-      <div className="grid md:grid-cols-2 gap-6">
-        <form className="bg-white p-4 rounded shadow" onSubmit={submit}>
-          <input required placeholder="Name" className="w-full p-2 border mb-2" value={form.name} onChange={e=>setForm({...form,name:e.target.value})} />
-          <input required placeholder="Email" className="w-full p-2 border mb-2" value={form.email} onChange={e=>setForm({...form,email:e.target.value})} />
-          <input placeholder="Phone" className="w-full p-2 border mb-2" value={form.phone} onChange={e=>setForm({...form,phone:e.target.value})} />
-          <textarea placeholder="Message" className="w-full p-2 border mb-2" value={form.text} onChange={e=>setForm({...form,text:e.target.value})} />
-          <button className="px-4 py-2 btn-primary rounded">Send</button>
-        </form>
+    <div className="contact-page-shell">
+      <Breadcrumbs />
+      <div className="contact-header">
         <div>
-          <h3 className="font-semibold">Address</h3>
-          <p>New Friends colony, Sector 23, Sanjay Nagar, Ghaziabad, Uttar Pradesh 201002</p>
-          <p className="mt-2"><a href="https://maps.app.goo.gl/6qNXoHM1YoV3hQVXA" target="_blank" className="text-mehroon underline">Open map</a></p>
-          <div className="mt-3">
-            <p className="text-sm">Phone: 9818630972, 8077148123</p>
-            <p className="text-sm">Email: <a href="mailto:contact.sdstationary@gmail.com" className="underline">contact.sdstationary@gmail.com</a></p>
-          </div>
+          <div className="page-section-kicker">Support</div>
+          <h1 className="contact-page-title">Contact Us</h1>
         </div>
+        <button onClick={() => router.back()} className="contact-back-button">Back</button>
+      </div>
+      <div className="contact-layout">
+        <form className="contact-form-panel contact-form-panel--active" onSubmit={submit}>
+          <div className="contact-form-head">
+            <h2 className="contact-form-title">Send a message</h2>
+            <p className="contact-form-subtitle">We usually reply during store hours.</p>
+          </div>
+          <div className="contact-grid">
+            <label className="block">
+              <span className="contact-field-label">Name</span>
+              <input required placeholder="Name" className="form-field mt-2" value={form.name} onChange={e=>setForm({...form,name:e.target.value})} />
+            </label>
+            <label className="block">
+              <span className="contact-field-label">Email</span>
+              <input required type="email" placeholder="Email" className="form-field mt-2" value={form.email} onChange={e=>setForm({...form,email:e.target.value})} />
+            </label>
+          </div>
+          <label className="block mt-4">
+            <span className="contact-field-label">Phone</span>
+            <input placeholder="Phone" className="form-field mt-2" value={form.phone} onChange={e=>setForm({...form,phone:e.target.value})} />
+          </label>
+          <label className="block mt-4">
+            <span className="contact-field-label">Message</span>
+            <textarea placeholder="How can we help?" className="form-field mt-2 min-h-[130px] resize-y" value={form.text} onChange={e=>setForm({...form,text:e.target.value})} />
+          </label>
+          <div className="contact-action-row">
+            <button className="contact-submit-button">Send</button>
+            <Link href="/shop" className="contact-browse-button">Browse Products</Link>
+          </div>
+        </form>
+        <aside className="contact-store-panel">
+          <div className="contact-store-head">
+            <span className="contact-icon-badge">
+              <svg xmlns="http://www.w3.org/2000/svg" className="contact-icon-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21 10c0 7-9 13-9 13S3 17 3 10a9 9 0 0 1 18 0Z"/><circle cx="12" cy="10" r="3"/></svg>
+            </span>
+            <div>
+              <h3 className="contact-store-title">Visit Shree Durga</h3>
+              <div className="contact-store-subtitle">Stationery Store</div>
+            </div>
+          </div>
+          <div className="contact-map-preview">
+            <div className="contact-map-preview-grid"></div>
+            <span className="contact-map-pin">●</span>
+            <span className="contact-map-label">Shree Durga Stationery</span>
+          </div>
+          <div className="contact-store-details">
+            <div>
+              <div className="contact-detail-label">Address</div>
+              <p className="contact-detail-copy">New Friends colony, Sector 23, Sanjay Nagar, Ghaziabad, Uttar Pradesh 201002</p>
+            </div>
+            <div>
+              <div className="contact-detail-label">Phone</div>
+              <p className="contact-detail-copy">9818630972, 8077148123</p>
+            </div>
+            <div>
+              <div className="contact-detail-label">Email</div>
+              <p className="contact-detail-copy"><a href="mailto:contact.sdstationary@gmail.com" className="underline">contact.sdstationary@gmail.com</a></p>
+            </div>
+            <a href="https://maps.app.goo.gl/6qNXoHM1YoV3hQVXA" target="_blank" className="contact-map-button">Open map</a>
+          </div>
+        </aside>
       </div>
     </div>
   )

@@ -8,11 +8,13 @@ export default function Profile({ user }) {
     name: user?.name || "",
     email: user?.email || "",
     phone: user?.phone || "",
+    whatsapp: user?.whatsapp || "",
     address: user?.address || "",
     locationUrl: user?.locationUrl || "",
   });
 
   const [loading, setLoading] = useState(false);
+  const [editing, setEditing] = useState(false);
   const toast = useToast();
 
   const save = async () => {
@@ -27,6 +29,7 @@ export default function Profile({ user }) {
 
       if (!res.ok) throw new Error("Failed to update profile");
       toast?.push?.({ message: 'Profile updated successfully!', type: 'success' });
+      setEditing(false);
     } catch (err) {
       console.error(err);
       toast?.push?.({ message: 'Something went wrong while saving your profile.', type: 'error' });
@@ -37,13 +40,19 @@ export default function Profile({ user }) {
 
   return (
     <div className="p-6">
-      <h1 className="text-2xl font-bold mb-4">Profile</h1>
+      <div className="flex items-center justify-between mb-4">
+        <h1 className="text-2xl font-bold">Profile</h1>
+        {!editing && (
+          <button onClick={() => setEditing(true)} className="px-4 py-2 btn-primary rounded">Edit</button>
+        )}
+      </div>
 
       <div className="bg-white p-4 rounded shadow max-w-lg">
         <label className="block mb-2 font-medium">Full Name</label>
         <input
           className="w-full p-2 border mb-4 rounded"
           value={form.name}
+          disabled={!editing}
           onChange={(e) => setForm({ ...form, name: e.target.value })}
           placeholder="Your name"
         />
@@ -59,14 +68,25 @@ export default function Profile({ user }) {
         <input
           className="w-full p-2 border mb-4 rounded"
           value={form.phone}
+          disabled={!editing}
           onChange={(e) => setForm({ ...form, phone: e.target.value })}
           placeholder="Your phone number"
+        />
+
+        <label className="block mb-2 font-medium">WhatsApp Number</label>
+        <input
+          className="w-full p-2 border mb-4 rounded"
+          value={form.whatsapp}
+          disabled={!editing}
+          onChange={(e) => setForm({ ...form, whatsapp: e.target.value })}
+          placeholder="Your WhatsApp number"
         />
 
         <label className="block mb-2 font-medium">Home Address</label>
         <input
           className="w-full p-2 border mb-4 rounded"
           value={form.address}
+          disabled={!editing}
           onChange={(e) => setForm({ ...form, address: e.target.value })}
           placeholder="Your address"
         />
@@ -75,17 +95,23 @@ export default function Profile({ user }) {
         <input
           className="w-full p-2 border mb-4 rounded"
           value={form.locationUrl}
+          disabled={!editing}
           onChange={(e) => setForm({ ...form, locationUrl: e.target.value })}
           placeholder="Paste your Google Map URL"
         />
 
-        <button
-          onClick={save}
-          disabled={loading}
-          className={`px-4 py-2 rounded text-white ${loading ? "bg-gray-400" : "btn-primary"}`}
-        >
-          {loading ? "Saving..." : "Save"}
-        </button>
+        {editing && (
+          <div className="flex gap-2">
+            <button
+              onClick={save}
+              disabled={loading}
+              className={`px-4 py-2 rounded text-white ${loading ? "bg-gray-400" : "btn-primary"}`}
+            >
+              {loading ? "Saving..." : "Save"}
+            </button>
+            <button onClick={() => { setEditing(false); setForm({ name: user?.name || '', email: user?.email || '', phone: user?.phone || '', whatsapp: user?.whatsapp || '', address: user?.address || '', locationUrl: user?.locationUrl || '' }); }} className="px-4 py-2 border rounded">Cancel</button>
+          </div>
+        )}
       </div>
     </div>
   );

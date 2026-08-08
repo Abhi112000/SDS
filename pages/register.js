@@ -54,6 +54,7 @@ export default function Register() {
           <input name="email" type="email" placeholder="Email" required className="w-full p-2 border mb-3 rounded" />
           <input name="password" type="password" placeholder="Password" required className="w-full p-2 border mb-3 rounded" />
           <input name="phone" placeholder="Phone" className="w-full p-2 border mb-3 rounded" />
+          <input name="whatsapp" placeholder="WhatsApp" className="w-full p-2 border mb-3 rounded" />
           <input name="address" placeholder="Address" className="w-full p-2 border mb-3 rounded" />
           <input name="locationUrl" placeholder="Location URL" className="w-full p-2 border mb-3 rounded" />
           <button disabled={loading} className="w-full py-2 btn-primary rounded">

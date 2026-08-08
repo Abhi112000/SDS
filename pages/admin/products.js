@@ -70,9 +70,9 @@ export default function AdminProducts({ initial }){
     return (s + 'XXX').slice(0,3);
   }
 
-  function generateSku(title, categoryId){
+  function generateSku(title, categoryValue){
     const a = makeThree(title);
-    const cat = categories.find(c => String(c._id || c.id) === String(categoryId));
+    const cat = categories.find(c => String(c._id || c.id) === String(categoryValue) || (c.name || c.title || '') === String(categoryValue));
     const b = makeThree(cat ? (cat.name || cat.title || '') : '');
     return `${a}-${b}`;
   }
@@ -325,7 +325,7 @@ export default function AdminProducts({ initial }){
                   <label className="block text-sm">Category</label>
                   <select value={form.category} onChange={e=>setForm(f=>({...f, category: e.target.value}))} className="w-full p-2 border rounded">
                     <option value="">-- choose --</option>
-                    {categories.map(c => (<option key={c._id || c.id} value={c._id || c.id}>{c.name || c.title || c}</option>))}
+                    {categories.map(c => (<option key={c._id || c.id} value={c.name || c.title || c}>{c.name || c.title || c}</option>))}
                   </select>
                 </div>
 
@@ -370,7 +370,7 @@ export default function AdminProducts({ initial }){
                       <div className="font-medium">{p.title}</div>
                       <div className="text-sm text-gray-600">
                         SKU: {p.sku || '—'} • Price: ₹{Number(p.price||0).toFixed(2)} • Category: {(() => {
-                          const cat = categories.find(c => String(c._id || c.id) === String(p.category));
+                          const cat = categories.find(c => String(c._id || c.id) === String(p.category) || (c.name || c.title || '') === String(p.category));
                           return cat ? (cat.name || cat.title || String(p.category)) : (p.category || '—');
                         })()}
                       </div>

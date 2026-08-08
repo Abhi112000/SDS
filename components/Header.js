@@ -84,20 +84,21 @@ export default function Header(){
   },[session]);
 
   return (
-    <header className="sticky top-0 z-50 bg-white/60 backdrop-blur-sm border-b border-gray-100">
-  <div className="max-w-7xl mx-auto px-4 py-3 flex items-center justify-between relative">
+    <header className="sticky top-0 z-50 border-b border-white/50 bg-white/90 backdrop-blur-xl shadow-sm">
+      <div className="max-w-7xl mx-auto px-4 py-3 flex items-center justify-between relative">
         <nav role="navigation" aria-label="Main navigation" className="flex items-center gap-3">
-          <Link href="/" className="flex items-center gap-3" aria-label="Go to homepage">
-            <img src="/images/logo.jpeg" alt="Shree Durga Stationery logo" className="h-12 md:h-16 lg:h-20 w-auto object-contain" />
-            <div className="text-xl font-extrabold tracking-tight">
-              Shree Durga
-              <span className="text-sm block font-medium text-slate-600">Stationery</span>
+          <Link href="/" className="flex items-center gap-3 group" aria-label="Go to homepage">
+            <span className="relative flex items-center justify-center h-12 w-12 rounded-full bg-gradient-to-br from-red-50 to-sky-50 border border-white shadow-sm">
+              <img src="/images/logo.jpeg" alt="Shree Durga Stationery logo" className="h-11 w-11 object-contain rounded-full" />
+            </span>
+            <div className="leading-none">
+              <div className="text-xl font-extrabold tracking-tight text-slate-900 group-hover:text-primary transition-colors">Shree Durga</div>
+              <span className="text-xs block font-semibold text-slate-500 mt-1 uppercase tracking-[0.17em]">Stationery</span>
             </div>
           </Link>
         </nav>
 
         <div className="flex items-center gap-4">
-          {/* show a hamburger dropdown for viewports under 1200px (isNarrow) */}
           {isNarrow ? (
             <>
               <button
@@ -106,7 +107,7 @@ export default function Header(){
                 aria-expanded={mobileOpen}
                 aria-controls={MENU_ID}
                 onClick={()=>setMobileOpen(s=>!s)}
-                className="px-3 py-2 border rounded flex items-center justify-center"
+                className="px-3 py-2 border rounded flex items-center justify-center text-slate-700 hover:bg-slate-50"
                 aria-label={mobileOpen ? 'Close menu' : 'Open menu'}
               >
                 {!mobileOpen ? (
@@ -121,44 +122,45 @@ export default function Header(){
               </button>
 
               <nav id={MENU_ID} ref={mobileMenuRef} aria-hidden={!mobileOpen} aria-label="Primary" className={`${mobileOpen ? 'block' : 'hidden'} w-full` }>
-                <div className={`${mobileOpen ? 'absolute left-0 right-0 top-full bg-white border-t p-4 z-40' : ''}`}>
+                <div className={`${mobileOpen ? 'absolute left-0 right-0 top-full bg-white border-t p-4 z-40 shadow-xl' : ''}`}>
                   <div className="flex flex-col gap-2 w-full">
-                    <Link href="/shop" onClick={()=>setMobileOpen(false)} className="text-slate-700 hover:underline block" aria-label="Shop">Shop</Link>
-                    <Link href="/contact" onClick={()=>setMobileOpen(false)} className="text-slate-700 hover:underline block" aria-label="Contact">Contact</Link>
+                    <Link href="/shop" onClick={()=>setMobileOpen(false)} className="text-slate-700 hover:text-primary hover:bg-slate-50 rounded-md px-3 py-2 block" aria-label="Shop">Shop</Link>
+                    <Link href="/contact" onClick={()=>setMobileOpen(false)} className="text-slate-700 hover:text-primary hover:bg-slate-50 rounded-md px-3 py-2 block" aria-label="Contact">Contact</Link>
                     {session && session.user?.role !== 'admin' && (
-                      <Link href="/messages" onClick={()=>setMobileOpen(false)} className="text-slate-700 hover:underline block" aria-label="Messages">Messages</Link>
+                      <Link href="/messages" onClick={()=>setMobileOpen(false)} className="text-slate-700 hover:text-primary hover:bg-slate-50 rounded-md px-3 py-2 block" aria-label="Messages">Messages</Link>
                     )}
-                    <Link href="/cart" onClick={()=>setMobileOpen(false)} className="text-slate-700 hover:underline block" aria-label="Cart">Cart</Link>
+                    <Link href="/cart" onClick={()=>setMobileOpen(false)} className="text-slate-700 hover:text-primary hover:bg-slate-50 rounded-md px-3 py-2 block" aria-label="Cart">Cart</Link>
 
                     {session ? (
                       <>
                         {session.user?.role === 'admin' && (
-                          <Link href="/admin" onClick={()=>setMobileOpen(false)} className="text-slate-700 hover:underline block" aria-label="Admin">Admin{unread?` (${unread})`:''}</Link>
+                          <Link href="/admin" onClick={()=>setMobileOpen(false)} className="text-slate-700 hover:text-primary hover:bg-slate-50 rounded-md px-3 py-2 block" aria-label="Admin">Admin{unread?` (${unread})`:''}</Link>
                         )}
-                        <Link href="/dashboard" onClick={()=>setMobileOpen(false)} className="text-slate-700 hover:underline block" aria-label="Profile">Profile</Link>
-                        <button onClick={() => { setMobileOpen(false); signOut(); }} className="text-slate-700 text-left block" aria-label="Logout">Logout</button>
+                        <Link href="/dashboard" onClick={()=>setMobileOpen(false)} className="text-slate-700 hover:text-primary hover:bg-slate-50 rounded-md px-3 py-2 block" aria-label="Dashboard">Dashboard</Link>
+                        <Link href="/profile" onClick={()=>setMobileOpen(false)} className="text-slate-700 hover:text-primary hover:bg-slate-50 rounded-md px-3 py-2 block" aria-label="Profile">Profile</Link>
+                        <button onClick={() => { setMobileOpen(false); signOut(); }} className="text-slate-700 text-left block hover:text-primary hover:bg-slate-50 rounded-md px-3 py-2" aria-label="Logout">Logout</button>
                       </>
                     ) : (
-                      <Link href="/login" onClick={()=>setMobileOpen(false)} className="text-slate-700 hover:underline block" aria-label="Login">Login</Link>
+                      <Link href="/login" onClick={()=>setMobileOpen(false)} className="text-slate-700 hover:text-primary hover:bg-slate-50 rounded-md px-3 py-2 block" aria-label="Login">Login</Link>
                     )}
                   </div>
                 </div>
               </nav>
             </>
           ) : (
-            <nav id={MENU_ID} ref={mobileMenuRef} aria-hidden={false} className={`flex items-center gap-3`} aria-label="Primary">
-              <Link href="/shop" className="text-slate-700 hover:underline" aria-label="Shop">Shop</Link>
-              <Link href="/contact" className="text-slate-700 hover:underline" aria-label="Contact">Contact</Link>
-              {session && session.user?.role !== 'admin' && <Link href="/messages" className="text-slate-700 hover:underline" aria-label="Messages">Messages</Link>}
+            <nav id={MENU_ID} ref={mobileMenuRef} aria-hidden={false} className={`flex items-center gap-6`} aria-label="Primary">
+              <Link href="/shop" className="text-slate-700 hover:text-primary font-semibold text-sm transition-colors" aria-label="Shop">Shop</Link>
+              <Link href="/contact" className="text-slate-700 hover:text-primary font-semibold text-sm transition-colors" aria-label="Contact">Contact</Link>
+              {session && session.user?.role !== 'admin' && <Link href="/messages" className="text-slate-700 hover:text-primary font-semibold text-sm transition-colors" aria-label="Messages">Messages</Link>}
             </nav>
           )}
 
           {!isNarrow && (
             <>
               <div className="relative" ref={cartRef}>
-                <button onClick={()=>setShowCartPreview(s=>!s)} className="text-slate-700 hover:underline relative px-2 py-1 flex items-center gap-2" aria-haspopup="dialog" aria-label="Open cart">
+                <button onClick={()=>setShowCartPreview(s=>!s)} className="text-slate-700 hover:text-primary relative px-2 py-1 flex items-center gap-2 font-semibold text-sm transition-colors" aria-haspopup="dialog" aria-label="Open cart">
                   <span>Cart</span>
-                  {cartCount? <span className="ml-1 inline-block bg-red-500 text-white text-xs px-2 py-0.5 rounded-full">{cartCount}</span>:null}
+                  {cartCount? <span className="ml-1 inline-flex items-center justify-center min-w-[24px] h-6 px-2 bg-primary text-white text-xs rounded-full font-bold">{cartCount}</span>:null}
                 </button>
 
                 {showCartPreview && (
@@ -195,7 +197,6 @@ export default function Header(){
                         </div>
                         <div className="flex flex-col items-end">
                           <Link href="/cart" className="px-3 py-2 btn-primary rounded text-white" aria-label="View cart">View Cart</Link>
-                          <Link href="/checkout" className="mt-2 px-3 py-1 btn-ghost rounded" aria-label="Proceed to checkout">Checkout</Link>
                         </div>
                       </div>
                     </div>
@@ -206,13 +207,14 @@ export default function Header(){
               {session ? (
                 <>
                   {session.user?.role === 'admin' && (
-                    <Link href="/admin" className="px-3 py-1 bg-slate-100 rounded text-slate-700">Admin{unread?` (${unread})`:''}</Link>
+                    <Link href="/admin" className="px-3 py-2 bg-slate-100 hover:bg-slate-200 rounded-full text-slate-700 text-sm font-semibold">Admin{unread?` (${unread})`:''}</Link>
                   )}
-                  <Link href="/dashboard" className="px-3 py-1 bg-slate-50 rounded text-slate-700">Profile</Link>
-                  <button onClick={() => signOut()} className="ml-2 px-3 py-1 bg-slate-50 rounded text-slate-700">Logout</button>
+                  <Link href="/dashboard" className="px-3 py-2 bg-slate-50 hover:bg-slate-100 rounded-full text-slate-700 text-sm font-semibold">Dashboard</Link>
+                  <Link href="/profile" className="px-3 py-2 bg-slate-50 hover:bg-slate-100 rounded-full text-slate-700 text-sm font-semibold">Profile</Link>
+                  <button onClick={() => signOut()} className="ml-2 px-3 py-2 bg-slate-50 hover:bg-slate-100 rounded-full text-slate-700 text-sm font-semibold">Logout</button>
                 </>
               ) : (
-                <Link href="/login" className="px-3 py-1 bg-slate-50 rounded text-slate-700">Login</Link>
+                <Link href="/login" className="px-4 py-2 rounded-full bg-slate-900 text-white text-sm font-semibold hover:bg-primary transition-colors">Login</Link>
               )}
             </>
           )}

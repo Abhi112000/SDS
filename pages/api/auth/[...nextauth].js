@@ -1,5 +1,4 @@
 import NextAuth from "next-auth";
-import GoogleProvider from "next-auth/providers/google";
 import CredentialsProvider from "next-auth/providers/credentials";
 import dbConnect from "@/lib/dbConnect";
 import User from "@/models/User";
@@ -31,6 +30,10 @@ export const authOptions = {
             name: user.name,
             email: user.email,
             role: user.role || "user",
+            phone: user.phone || '',
+            whatsapp: user.whatsapp || '',
+            address: user.address || '',
+            locationUrl: user.locationUrl || ''
           };
         } catch (e) {
           // helpful server-side logging for Vercel logs
@@ -38,12 +41,6 @@ export const authOptions = {
           throw e;
         }
       },
-    }),
-
-    // --- Google Login
-    GoogleProvider({
-      clientId: process.env.GOOGLE_CLIENT_ID,
-      clientSecret: process.env.GOOGLE_CLIENT_SECRET,
     }),
   ],
 
@@ -65,6 +62,10 @@ export const authOptions = {
           // Keep values primitive and serializable
           token.role = user.role || "user";
           token.sub = user.id || token.sub;
+          token.phone = user.phone || '';
+          token.whatsapp = user.whatsapp || '';
+          token.address = user.address || '';
+          token.locationUrl = user.locationUrl || '';
         }
         if (process.env.NODE_ENV !== 'production') {
           console.log('next-auth jwt callback - token:', { sub: token.sub, role: token.role, user: !!user });
@@ -82,6 +83,10 @@ export const authOptions = {
         // copy only primitive values
         session.user.role = token?.role || session.user.role || 'user';
         session.user.id = token?.sub || session.user.id;
+        session.user.phone = token?.phone || session.user.phone || '';
+        session.user.whatsapp = token?.whatsapp || session.user.whatsapp || '';
+        session.user.address = token?.address || session.user.address || '';
+        session.user.locationUrl = token?.locationUrl || session.user.locationUrl || '';
         if (process.env.NODE_ENV !== 'production') {
           console.log('next-auth session callback - session user:', { id: session.user.id, role: session.user.role });
         }

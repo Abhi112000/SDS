@@ -4,7 +4,15 @@ import { useRouter } from 'next/router';
 import { CartContext } from './CartContext';
 
 export default function ProductCard({ product }) {
-  const title = product.title || product.name || 'Product';
+  const rawTitle = product.title || product.name || 'Product';
+  const title = String(rawTitle)
+    .replace(/\s*[-–]\s*(product|id|product\s*id)\s*[:#]?\s*[A-Za-z0-9]{6,}\s*$/i, '')
+    .replace(/\s*[-–]\s*[0-9a-fA-F]{24}\s*$/i, '')
+    .replace(/\s*\|\s*(ID|Product ID|product id)\s*[:#]?\s*[A-Za-z0-9]{6,}\s*$/i, '')
+    .replace(/\s*\(\s*(ID|Product ID|product id)\s*[:#]?\s*[A-Za-z0-9]{6,}\s*\)\s*$/i, '')
+    .replace(/\s*\[[A-Fa-f0-9]{24}\]\s*$/i, '')
+    .replace(/\s*\([A-Fa-f0-9]{24}\)\s*$/i, '')
+    .trim() || 'Product';
   function pickSize(item, size){
     if(!item) return null;
     if(typeof item === 'string') return item;
@@ -27,19 +35,15 @@ export default function ProductCard({ product }) {
   const percentOff = (isOnSale && salePrice && price && price > salePrice) ? Math.round(((price - salePrice) / price) * 100) : null;
 
   return (
-  <div className="relative rounded-2xl shadow-2xl hover:shadow-3xl transition-transform transform hover:-translate-y-1 overflow-hidden card flex flex-col h-full shadow-3d glow">
+  <article className="product-card">
     {isOnSale ? (
-      <div className="absolute left-0 top-0 transform -translate-y-2 -translate-x-2 z-20">
-        <div className="bg-red-600 text-white text-xs font-semibold px-3 py-1 rounded-tr rounded-br">SALE</div>
-      </div>
+      <div className="product-card-sale-badge">SALE</div>
     ) : null}
     {percentOff ? (
-      <div className="absolute right-3 top-3 z-20">
-        <div className="bg-red-100 text-red-600 text-xs font-semibold px-2 py-1 rounded">-{percentOff}%</div>
-      </div>
+      <div className="product-card-offer-badge">-{percentOff}%</div>
     ) : null}
-      <Link href={`/product/${id}`} className="block">
-        <div className="w-full h-56 product-image-backdrop flex items-center justify-center">
+      <Link href={`/product/${id}`} className="product-card-image-link">
+        <div className="product-card-image-panel">
           {/* responsive srcSet: thumb -> card -> large if available */}
           {(() => {
             const pimg = product.image || (product.images && product.images[0]);
@@ -47,42 +51,44 @@ export default function ProductCard({ product }) {
             const card = pickSize(pimg, 'card') || thumb || img;
             const large = pickSize(pimg, 'large') || card;
             const srcSet = `${thumb ? `${thumb} 200w,` : ''} ${card ? `${card} 600w,` : ''} ${large ? `${large} 1200w` : ''}`;
-            return <img src={card || img} srcSet={srcSet} sizes="(max-width: 640px) 100vw, 33vw" loading="lazy" alt={title} className="max-h-48 object-contain" onError={(e)=>{ e.currentTarget.onerror = null; e.currentTarget.src = '/images/sample1.svg'; e.currentTarget.srcset = ''; }} />;
+            return <img src={card || img} srcSet={srcSet} sizes="(max-width: 640px) 100vw, 33vw" loading="lazy" alt={title} className="product-card-image" onError={(e)=>{ e.currentTarget.onerror = null; e.currentTarget.src = '/images/sample1.svg'; e.currentTarget.srcset = ''; }} />;
           })()}
         </div>
       </Link>
 
-      <div className="p-4 bg-transparent flex-1 flex flex-col">
-        <h3 className="text-base md:text-lg font-semibold text-primary truncate" title={title}>{title}</h3>
-          <div className="text-muted mt-1" style={{ color: 'rgba(0,0,0,0.62)' }}>
+      <div className="product-card-body">
+        <div className="product-title-stack">
+          <h3 className="product-title" title={title}>{title}</h3>
+          {product.category && <span className="product-category-badge">{product.category}</span>}
+        </div>
+          <div className="product-price-row">
             {isOnSale && salePrice ? (
               <div>
-                <span className="text-sm text-gray-500 line-through mr-2">₹{price}</span>
-                <span className="font-semibold text-lg text-primary animate-pulse">₹{salePrice}</span>
+                <span className="product-original-price">₹{price}</span>
+                <span className="product-sale-price">₹{salePrice}</span>
               </div>
             ) : (originalPrice && originalPrice > price ? (
               <div>
-                <span className="text-sm text-gray-500 line-through mr-2">₹{originalPrice}</span>
-                <span className="font-semibold text-lg text-primary">₹{price}</span>
+                <span className="product-original-price">₹{originalPrice}</span>
+                <span className="product-final-price">₹{price}</span>
               </div>
             ) : (
-              <span className="font-semibold text-lg text-primary">₹{price}</span>
+              <span className="product-final-price">₹{price}</span>
             ))}
           </div>
-        <div className="mt-auto">
+        <div className="product-card-action-row">
           <button
           onClick={(e) => {
             e.preventDefault();
-            // add effective price (sale price if active)
             add({ _id: id, title, price: effectivePrice, image: img }, 1);
             setJustAdded(true);
             setTimeout(()=>setJustAdded(false), 2500);
           }}
-          className="mt-4 w-full py-2 rounded-full btn-primary"
+          className="product-add-button"
         >Add to Cart</button>
-        {justAdded && <div className="mt-2 text-sm text-primary">Added to cart</div>}
+        {justAdded && <div className="product-added-toast" aria-live="polite">Added to cart</div>}
         </div>
       </div>
-    </div>
+    </article>
   );
 }

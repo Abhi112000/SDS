@@ -3,11 +3,13 @@ import path from 'path';
 import dbConnect from '@/lib/dbConnect';
 import Product from '@/models/Product';
 import Link from 'next/link';
+import { useRouter } from 'next/router';
 import { useState, useContext, useEffect, useRef } from 'react';
 import Head from 'next/head';
 import { CartContext } from '../../components/CartContext';
 
 export default function ProductPage({ product }){
+  const router = useRouter();
   const { add } = useContext(CartContext);
   const [qty, setQty] = useState(1);
   const [added, setAdded] = useState(false);
@@ -68,75 +70,86 @@ export default function ProductPage({ product }){
   }
 
   return (
-    <main className="max-w-7xl mx-auto py-12 px-4">
+    <main className="product-detail-page">
       <Head>
         <title>{`${product.title || product.name} — Shree Durga Stationary`}</title>
       </Head>
 
-      <div className="grid md:grid-cols-2 gap-8 items-start">
-        <div className="card p-6">
-          {(() => {
-            const main = pickSize(imgs[0], 'large') || pickSize(imgs[0], 'card') || '/images/sample1.svg';
-            const thumb0 = pickSize(imgs[0], 'thumb') || pickSize(imgs[0], 'card') || main;
-            const srcSet = `${thumb0 ? `${thumb0} 200w,` : ''} ${main ? `${main} 1200w` : ''}`;
-            return <img src={main} srcSet={srcSet} sizes="(max-width:640px) 100vw, 50vw" loading="lazy" alt={product.title || product.name} className="w-full object-contain max-h-96" onError={(e)=>{ e.currentTarget.onerror = null; e.currentTarget.src = '/images/sample1.svg'; e.currentTarget.srcset = ''; }} />;
-          })()}
+      <div className="flex items-center justify-between mb-4">
+        <button onClick={() => router.back()} className="btn-secondary rounded px-4 py-2">Back</button>
+        <Link href="/shop" className="text-primary font-bold text-sm hover:underline">View all products</Link>
+      </div>
+
+      <div className="product-detail-layout">
+        <section className="product-detail-gallery-panel">
+          <div className="product-detail-image-frame">
+            {(() => {
+              const main = pickSize(imgs[0], 'large') || pickSize(imgs[0], 'card') || '/images/sample1.svg';
+              const thumb0 = pickSize(imgs[0], 'thumb') || pickSize(imgs[0], 'card') || main;
+              const srcSet = `${thumb0 ? `${thumb0} 200w,` : ''} ${main ? `${main} 1200w` : ''}`;
+              return <img src={main} srcSet={srcSet} sizes="(max-width:640px) 100vw, 50vw" loading="lazy" alt={product.title || product.name} className="product-detail-main-image" onError={(e)=>{ e.currentTarget.onerror = null; e.currentTarget.src = '/images/sample1.svg'; e.currentTarget.srcset = ''; }} />;
+            })()}
+          </div>
           {imgs.length > 1 && (
-            <div className="flex gap-2 mt-3">
+            <div className="product-gallery-thumbs">
               {imgs.map((item,i)=> {
                 const t = pickSize(item, 'thumb') || pickSize(item, 'card') || pickSize(item, 'large');
                 return (
-                  <button key={i} onClick={()=>openGalleryAt(i)} className="border rounded p-0.5">
-                    <img src={t} className="w-16 h-16 object-cover rounded" onError={(e)=>{ e.currentTarget.onerror = null; e.currentTarget.src = '/images/sample1.svg'; }} />
+                  <button key={i} onClick={()=>openGalleryAt(i)} className="product-gallery-thumb">
+                    <img src={t} className="product-gallery-thumb-image" onError={(e)=>{ e.currentTarget.onerror = null; e.currentTarget.src = '/images/sample1.svg'; }} />
                   </button>
                 );
               })}
             </div>
           )}
-        </div>
+        </section>
 
-        <div>
-          <h1 className="text-2xl font-extrabold mb-2 text-primary">{product.title || product.name}</h1>
-          <div className="text-lg mb-4 text-muted">{product.subtitle || product.category || ''}</div>
-
+        <section className="product-detail-info">
           <div className="mb-4">
+            <div className="page-section-kicker">Stationery Product</div>
+          </div>
+          <h1 className="product-detail-title">{product.title || product.name}</h1>
+          <div className="product-detail-subtitle">{product.subtitle || product.category || 'Stationery Essentials'}</div>
+
+          <div className="product-price-block">
             {((product.onSale || (product.tags && product.tags.includes && product.tags.includes('SALE!'))) && product.salePrice) ? (
               <div className="flex items-center gap-3">
-                <div className="text-sm line-through text-gray-500">₹{price}</div>
-                <div className="text-2xl font-bold text-primary">₹{product.salePrice}</div>
+                <div className="product-detail-old-price">₹{price}</div>
+                <div className="product-detail-price">₹{product.salePrice}</div>
+                <span className="product-detail-sale-label">Sale</span>
               </div>
             ) : (product.originalPrice && product.originalPrice > price ? (
               <div className="flex items-center gap-3">
-                <div className="text-sm line-through text-gray-500">₹{product.originalPrice}</div>
-                <div className="text-2xl font-bold text-primary">₹{price}</div>
+                <div className="product-detail-old-price">₹{product.originalPrice}</div>
+                <div className="product-detail-price">₹{price}</div>
               </div>
             ) : (
-              <div className="text-2xl font-bold text-primary">₹{price}</div>
+              <div className="product-detail-price">₹{price}</div>
             ))}
           </div>
 
-          <div className="mb-4 text-sm text-muted">
+          <div className="product-detail-summary">
             {product.description || 'No description available.'}
           </div>
 
-          <div className="flex items-center gap-3 mb-4">
-            <label className="text-sm">Qty</label>
-            <input type="number" min="1" value={qty} onChange={(e)=>setQty(Math.max(1, Number(e.target.value || 1)))} className="w-20 px-2 py-1 border rounded" />
-            <button onClick={addToCart} className="px-4 py-2 rounded-md btn-primary">Add to Cart</button>
-            <button onClick={()=>{ addToCart(); window.location='/cart'; }} className="px-4 py-2 rounded-md btn-ghost">Buy Now</button>
+          <div className="product-detail-cta-row">
+            <label className="product-qty-label">Qty</label>
+            <input type="number" min="1" value={qty} onChange={(e)=>setQty(Math.max(1, Number(e.target.value || 1)))} className="form-field qty-field" />
+            <button onClick={addToCart} className="product-primary-button">Add to Cart</button>
+            <button onClick={()=>{ addToCart(); window.location='/cart'; }} className="product-secondary-button">Buy Now</button>
           </div>
 
-          {added && <div className="text-sm text-primary mb-4">Added to cart</div>}
+          {added && <div className="product-added-toast detail-toast">Added to cart</div>}
+
+          <div className="product-detail-details-card">
+            <h3 className="product-detail-details-title">Details</h3>
+            <div className="product-detail-details-copy">{product.longDescription || product.description || '—'}</div>
+          </div>
 
           <div className="mt-6">
-            <h3 className="text-lg font-semibold mb-2">Details</h3>
-            <div className="text-sm text-muted">{product.longDescription || product.description || '—'}</div>
+            <Link href="/shop" className="inline-flex items-center gap-2 text-primary font-semibold hover:underline">Back to shop</Link>
           </div>
-
-          <div className="mt-6">
-            <Link href="/shop" className="underline">Back to shop</Link>
-          </div>
-        </div>
+        </section>
       </div>
       {showGallery && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-75">

@@ -23,6 +23,7 @@ export default function OrderModal({ open, onClose, coupon = null }) {
         name: session.user?.name || prev.name || '',
         email: session.user?.email || prev.email || '',
         phone: session.user?.phone || prev.phone || '',
+        whatsapp: session.user?.whatsapp || prev.whatsapp || '',
         address: session.user?.address || prev.address || '',
         locationUrl: session.user?.locationUrl || prev.locationUrl || ''
       }));
@@ -30,6 +31,45 @@ export default function OrderModal({ open, onClose, coupon = null }) {
       setMode('choice');
     }
   }, [session, open]);
+
+  const sendWhatsAppOrder = (header, orderId, orderKind) => {
+    const ownerWhatsapp = process.env.NEXT_PUBLIC_OWNER_WHATSAPP_NUMBER || process.env.OWNER_WHATSAPP_NUMBER || '919818630972';
+    const whatsappPhone = String(ownerWhatsapp).replace(/\D/g, '');
+
+    const cartLines = (cart.items || []).map((it) => `${it.title} x ${it.qty} - ₹${it.price}`).join('\n');
+    const discount = Number(coupon?.discount || 0);
+    const total = Math.max(subtotal - discount, 0);
+    const message = [
+      `${header}`,
+      orderId ? `Order ID: ${orderId}` : '',
+      `Customer Type: ${orderKind}`,
+      '',
+      'Hello Shree Durga Stationary, I want to place an order.',
+      '',
+      `Name: ${form.name || ''}`,
+      `Phone: ${form.phone || ''}`,
+      `Email: ${form.email || ''}`,
+      `Address: ${form.address || ''}`,
+      `Location URL: ${form.locationUrl || ''}`,
+      `WhatsApp: ${String(form.whatsapp || '').trim()}`,
+      '',
+      'Order Items:',
+      cartLines || 'No items selected',
+      '',
+      `Subtotal: ₹${subtotal}`,
+      `Discount: -₹${discount}`,
+      `Total: ₹${total}`
+    ].filter(Boolean).join('\n');
+
+    if (!whatsappPhone) {
+      toast?.push?.({ message: 'WhatsApp number is not configured yet.', type: 'error' });
+      return;
+    }
+
+    const url = `https://wa.me/${whatsappPhone}?text=${encodeURIComponent(message)}`;
+    window.open(url, '_blank', 'noopener,noreferrer');
+    onClose();
+  };
 
   const placeGuest = async () => {
     setLoading(true);
@@ -39,18 +79,24 @@ export default function OrderModal({ open, onClose, coupon = null }) {
       couponCode: coupon?.code || null,
       ...form
     };
-    const res = await fetch("/api/orders", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(payload)
-    }).then((r) => r.json());
-    setLoading(false);
-    if (res.ok) {
-      clear();
-      toast?.push?.({ message: 'Order placed. Order ID: ' + res.orderId, type: 'success' });
-      onClose();
-    } else {
-      toast?.push?.({ message: 'Error placing order: ' + (res.error || 'unknown'), type: 'error' });
+    try {
+      const res = await fetch('/api/orders', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      }).then((r) => r.json());
+      setLoading(false);
+      if (res.ok) {
+        const orderRef = `GUEST-${res.orderId}`;
+        clear();
+        sendWhatsAppOrder('GUEST ORDER', orderRef, 'Guest');
+        toast?.push?.({ message: 'Guest order prepared. Order ID: ' + orderRef, type: 'success' });
+      } else {
+        toast?.push?.({ message: 'Error placing order: ' + (res.error || 'unknown'), type: 'error' });
+      }
+    } catch (e) {
+      setLoading(false);
+      toast?.push?.({ message: 'Network error: ' + (e.message || String(e)), type: 'error' });
     }
   };
 
@@ -61,17 +107,22 @@ export default function OrderModal({ open, onClose, coupon = null }) {
       subtotal,
       couponCode: coupon?.code || null,
       // include profile details so admin sees the info
-      name: form.name || session.user?.name || '',
-      phone: form.phone || session.user?.phone || '',
-      email: form.email || session.user?.email || '',
-      address: form.address || session.user?.address || '',
-      locationUrl: form.locationUrl || session.user?.locationUrl || '',
-      whatsapp: form.whatsapp || ''
+      name: form.name || session?.user?.name || '',
+      phone: form.phone || session?.user?.phone || '',
+      email: form.email || session?.user?.email || '',
+      whatsapp: form.whatsapp || session?.user?.whatsapp || session?.user?.phone || '' ,
+      address: form.address || session?.user?.address || '',
+      locationUrl: form.locationUrl || session?.user?.locationUrl || ''
     };
     try{
       const res = await fetch('/api/orders', { method: 'POST', credentials: 'include', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) }).then(r=>r.json());
       setLoading(false);
-      if(res.ok){ clear(); toast?.push?.({ message: 'Order placed. Order ID: ' + res.orderId, type: 'success' }); onClose(); }
+      if(res.ok){
+        const orderRef = `ACCOUNT-${res.orderId}`;
+        clear();
+        sendWhatsAppOrder('ACCOUNT HOLDER ORDER', orderRef, 'Account Holder');
+        toast?.push?.({ message: 'Order placed. Order ID: ' + orderRef, type: 'success' });
+      }
       else toast?.push?.({ message: 'Error: ' + (res.error||'unknown'), type: 'error' });
   }catch(e){ setLoading(false); toast?.push?.({ message: 'Network error: ' + (e.message||String(e)), type: 'error' }); }
   };
@@ -109,6 +160,7 @@ export default function OrderModal({ open, onClose, coupon = null }) {
               <div className="space-y-2">
                 <input placeholder="Name" className="w-full p-2 border" value={form.name} onChange={e => setForm({ ...form, name: e.target.value })} />
                 <input placeholder="Phone" className="w-full p-2 border" value={form.phone} onChange={e => setForm({ ...form, phone: e.target.value })} />
+                <input placeholder="WhatsApp" className="w-full p-2 border" value={form.whatsapp} onChange={e => setForm({ ...form, whatsapp: e.target.value })} />
                 <input placeholder="Email" className="w-full p-2 border" value={form.email} onChange={e => setForm({ ...form, email: e.target.value })} />
                 <textarea placeholder="Address" className="w-full p-2 border" value={form.address} onChange={e => setForm({ ...form, address: e.target.value })} />
                 <input placeholder="Location URL (optional)" className="w-full p-2 border" value={form.locationUrl} onChange={e => setForm({ ...form, locationUrl: e.target.value })} />
@@ -143,14 +195,14 @@ export default function OrderModal({ open, onClose, coupon = null }) {
               <div className="space-y-2">
                 <input required placeholder="Name*" className="w-full p-2 border" value={form.name} onChange={e => setForm({ ...form, name: e.target.value })} />
                 <input required placeholder="Phone*" className="w-full p-2 border" value={form.phone} onChange={e => setForm({ ...form, phone: e.target.value })} />
-                <input placeholder="WhatsApp (optional)" className="w-full p-2 border" value={form.whatsapp} onChange={e => setForm({ ...form, whatsapp: e.target.value })} />
+                <input required placeholder="WhatsApp*" className="w-full p-2 border" value={form.whatsapp} onChange={e => setForm({ ...form, whatsapp: e.target.value })} />
                 <input required placeholder="Email*" className="w-full p-2 border" value={form.email} onChange={e => setForm({ ...form, email: e.target.value })} />
                 <textarea required placeholder="Address*" className="w-full p-2 border" value={form.address} onChange={e => setForm({ ...form, address: e.target.value })} />
                 <input required placeholder="Location URL (Google Maps) *" className="w-full p-2 border" value={form.locationUrl} onChange={e => setForm({ ...form, locationUrl: e.target.value })} />
 
                 <div className="mt-3 flex justify-end gap-2">
                   <button onClick={() => setMode("choice")} className="px-3 py-1">Back</button>
-                  <button onClick={placeGuest} disabled={loading} className="px-4 py-2 btn-primary rounded">{loading ? "Placing..." : "Place Order"}</button>
+                  <button onClick={placeGuest} disabled={loading} className="px-4 py-2 btn-primary rounded">{loading ? "Placing..." : "Order on WhatsApp"}</button>
                 </div>
               </div>
             </div>
