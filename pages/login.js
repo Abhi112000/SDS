@@ -1,10 +1,20 @@
-import { signIn } from "next-auth/react";
+import { getSession, signIn, useSession } from "next-auth/react";
 import { useToast } from '../components/Toast';
 import { useRouter } from 'next/router';
+import { useEffect } from 'react';
 
 export default function Login() {
   const toast = useToast();
   const router = useRouter();
+  const { data: session, status } = useSession();
+  const callbackUrl = router.query.callbackUrl || '/profile';
+
+  useEffect(() => {
+    if (status === 'authenticated') {
+      router.replace(callbackUrl);
+    }
+  }, [status, callbackUrl, router]);
+
   return (
     <div className="flex flex-col items-center justify-center min-h-screen">
       <h1 className="text-2xl font-bold mb-6">Login</h1>
@@ -16,7 +26,7 @@ export default function Login() {
             e.preventDefault();
             const email = e.target.email.value;
             const password = e.target.password.value;
-            const result = await signIn("credentials", { email, password, redirect: false });
+            const result = await signIn("credentials", { email, password, redirect: false, callbackUrl });
             // diagnostic logging (helps on Vercel) and better messaging for server errors
             try { console.log('signIn result', result); } catch (e) {}
             if (result?.error) {
@@ -25,7 +35,7 @@ export default function Login() {
               toast.push({ message: `Server error during login (status ${result.status}). Check server logs.`, type: 'error' });
             } else {
               toast.push({ message: 'Login successful! Redirecting...', type: 'success' });
-              router.push('/profile');
+              router.replace(result?.url || callbackUrl);
             }
           }}
         >
@@ -59,4 +69,17 @@ export default function Login() {
       </div>
     </div>
   );
+}
+
+export async function getServerSideProps(context) {
+  const session = await getSession(context);
+  if (session) {
+    return {
+      redirect: {
+        destination: context.query.callbackUrl || '/profile',
+        permanent: false,
+      },
+    };
+  }
+  return { props: {} };
 }
