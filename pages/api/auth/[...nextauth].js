@@ -4,9 +4,10 @@ import dbConnect from "@/lib/dbConnect";
 import User from "@/models/User";
 import bcrypt from "bcryptjs";
 
-const NEXTAUTH_URL_VALUE = process.env.NEXTAUTH_URL || (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : '');
-if (!process.env.NEXTAUTH_URL && NEXTAUTH_URL_VALUE) {
-  process.env.NEXTAUTH_URL = NEXTAUTH_URL_VALUE;
+const DEFAULT_NEXTAUTH_URL = 'https://sds-qpcz.vercel.app';
+const NEXTAUTH_URL_VALUE = process.env.NEXTAUTH_URL || (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : '') || DEFAULT_NEXTAUTH_URL;
+if (!process.env.NEXTAUTH_URL || !String(process.env.NEXTAUTH_URL).includes('sds-qpcz.vercel.app')) {
+  process.env.NEXTAUTH_URL = DEFAULT_NEXTAUTH_URL;
 }
 
 console.log('[next-auth] runtime config:', {
