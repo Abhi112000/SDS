@@ -16,6 +16,9 @@ if (!resolvedNextAuthUrl) {
 }
 const NEXTAUTH_URL_VALUE = String(resolvedNextAuthUrl).replace(/\/$/, '');
 process.env.NEXTAUTH_URL = NEXTAUTH_URL_VALUE;
+if (!process.env.NEXTAUTH_URL_INTERNAL) {
+  process.env.NEXTAUTH_URL_INTERNAL = process.env.NEXTAUTH_URL;
+}
 
 console.log('[next-auth] runtime config:', {
   NEXTAUTH_URL: process.env.NEXTAUTH_URL || null,

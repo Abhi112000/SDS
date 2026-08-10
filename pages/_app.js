@@ -34,8 +34,10 @@ export default function App({ Component, pageProps: { session, ...pageProps } })
     };
   },[]);
 
+  const nextAuthBaseUrl = process.env.NEXT_PUBLIC_BASE_URL || 'https://sdstationery.vercel.app';
+
   return (
-    <SessionProvider session={session}>
+    <SessionProvider session={session} baseUrl={nextAuthBaseUrl} basePath="/api/auth">
       <CartProvider>
         <ToastProvider>
           <Head>
