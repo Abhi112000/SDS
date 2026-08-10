@@ -1,41 +1,46 @@
-import { getSession, signIn, useSession } from "next-auth/react";
+import { getSession, signIn } from "next-auth/react";
 import { useToast } from '../components/Toast';
 import { useRouter } from 'next/router';
-import { useEffect } from 'react';
+import { useState } from 'react';
 
 export default function Login() {
   const toast = useToast();
   const router = useRouter();
-  const { data: session, status } = useSession();
-  const callbackUrl = router.query.callbackUrl || '/profile';
-
-  useEffect(() => {
-    if (status === 'authenticated') {
-      router.replace(callbackUrl);
-    }
-  }, [status, callbackUrl, router]);
+  const [loading, setLoading] = useState(false);
+  const callbackUrl = typeof router.query.callbackUrl === 'string' ? router.query.callbackUrl : '/profile';
 
   return (
     <div className="flex flex-col items-center justify-center min-h-screen">
       <h1 className="text-2xl font-bold mb-6">Login</h1>
 
       <div className="bg-white p-6 rounded shadow w-80">
-        {/* Email/Password Login */}
+        {loading && (
+          <div className="mb-4 rounded bg-red-50 px-3 py-2 text-sm text-red-800" role="status" aria-live="polite">
+            Signing in, please wait...
+          </div>
+        )}
         <form
           onSubmit={async (e) => {
             e.preventDefault();
+            if (loading) return;
+            setLoading(true);
             const email = e.target.email.value;
             const password = e.target.password.value;
-            const result = await signIn("credentials", { email, password, redirect: false, callbackUrl });
-            // diagnostic logging (helps on Vercel) and better messaging for server errors
-            try { console.log('signIn result', result); } catch (e) {}
-            if (result?.error) {
-              toast.push({ message: 'Login failed: ' + result.error, type: 'error' });
-            } else if (result?.status && result.status >= 500) {
-              toast.push({ message: `Server error during login (status ${result.status}). Check server logs.`, type: 'error' });
-            } else {
-              toast.push({ message: 'Login successful! Redirecting...', type: 'success' });
-              router.replace(result?.url || callbackUrl);
+            try {
+              const result = await signIn("credentials", { email, password, redirect: false, callbackUrl });
+              if (result?.error) {
+                toast.push({ message: 'Login failed: ' + result.error, type: 'error' });
+                setLoading(false);
+              } else if (result?.status && result.status >= 500) {
+                toast.push({ message: `Server error during login (status ${result.status}). Check server logs.`, type: 'error' });
+                setLoading(false);
+              } else {
+                toast.push({ message: 'Login successful! Redirecting...', type: 'success' });
+                await router.replace(result?.url || callbackUrl);
+              }
+            } catch (error) {
+              toast.push({ message: 'Login failed. Please try again.', type: 'error' });
+              setLoading(false);
             }
           }}
         >
@@ -53,9 +58,11 @@ export default function Login() {
           />
           <button
             type="submit"
-            className="w-full py-2 btn-primary rounded"
+            disabled={loading}
+            aria-busy={loading}
+            className="w-full py-2 btn-primary rounded disabled:cursor-wait disabled:opacity-60"
           >
-            Sign In
+            {loading ? 'Signing In...' : 'Sign In'}
           </button>
         </form>
 

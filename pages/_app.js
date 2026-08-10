@@ -1,5 +1,4 @@
 import '../styles/globals.css';
-import Script from 'next/script';
 import Head from 'next/head';
 import { SessionProvider } from 'next-auth/react';
 import { CartProvider } from '../components/CartContext';
@@ -37,14 +36,11 @@ export default function App({ Component, pageProps: { session, ...pageProps } })
             <meta name="description" content="Shree Durga Stationary — quality stationery delivered. Pens, pencils, notebooks, and more for school, office and creatives." />
             <meta name="theme-color" content="#B71C1C" />
           </Head>
-          <Script src="https://cdn.jsdelivr.net/npm/chart.js" strategy="beforeInteractive" />
           <Header />
-          {/* centered, attractive loading overlay (animated pencil) */}
           {loadingRoute && (
             <div aria-live="polite" className="fixed inset-0 z-50 flex items-center justify-center">
               <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" />
               <div className="relative z-10 bg-white/95 dark:bg-gray-900/90 rounded-lg p-6 shadow-xl flex flex-col items-center gap-4 max-w-xs w-full">
-                {/* Animated pencil SVG — uses subtle bobbing and rotate for a lively feel */}
           <div className="flex items-center justify-center w-16 h-16">
                   <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" className="w-12 h-12 transform animate-spin" style={{ animationDuration: '1.4s' }} aria-hidden="true">
                     <defs>

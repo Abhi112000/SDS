@@ -37,6 +37,5 @@ export default async function handler(req,res){
     }catch(e){ console.warn('smtp send failed', e?.message || e); }
   }
 
-  console.log('Password reset link for', user.email, resetUrl);
   return res.status(200).json({ ok: true });
 }

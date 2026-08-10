@@ -6,7 +6,7 @@ import Product from '@/models/Product';
 import User from '@/models/User';
 import GuestOrder from '@/models/GuestOrder';
 import useSWR from 'swr';
-import { useEffect, useRef, useState, useCallback } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import { useSession } from 'next-auth/react';
 import { useToast } from '@/components/Toast';
 import Pusher from 'pusher-js';
@@ -59,7 +59,6 @@ export default function Admin({ dbError = false, errorMessage = '' }){
       toast?.push?.({ message: 'Invoice settings saved', type: 'success' });
     }catch(e){ setSettingsBusy(false); toast?.push?.({ message: 'Save failed: ' + (e.message || 'error'), type: 'error' }); }
   }
-  const chartRef = useRef();
   const { data: session, status } = useSession();
   const toast = useToast();
   // Quick add product state

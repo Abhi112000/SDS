@@ -36,8 +36,6 @@ export const authOptions = {
             locationUrl: user.locationUrl || ''
           };
         } catch (e) {
-          // helpful server-side logging for Vercel logs
-          try { console.error('[auth] credentials authorize error', e?.message || e); } catch (__) {}
           throw e;
         }
       },
@@ -67,9 +65,6 @@ export const authOptions = {
           token.address = user.address || '';
           token.locationUrl = user.locationUrl || '';
         }
-        if (process.env.NODE_ENV !== 'production') {
-          console.log('next-auth jwt callback - token:', { sub: token.sub, role: token.role, user: !!user });
-        }
       }catch(err){
         console.error('[next-auth] jwt callback error', err && (err.stack || err.message || err));
       }
@@ -87,9 +82,6 @@ export const authOptions = {
         session.user.whatsapp = token?.whatsapp || session.user.whatsapp || '';
         session.user.address = token?.address || session.user.address || '';
         session.user.locationUrl = token?.locationUrl || session.user.locationUrl || '';
-        if (process.env.NODE_ENV !== 'production') {
-          console.log('next-auth session callback - session user:', { id: session.user.id, role: session.user.role });
-        }
       }catch(err){
         console.error('[next-auth] session callback error', err && (err.stack || err.message || err));
       }
