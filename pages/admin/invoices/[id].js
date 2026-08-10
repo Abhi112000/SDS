@@ -4,6 +4,7 @@ import Invoice from '@/models/Invoice';
 import AdminSidebar from '@/components/AdminSidebar';
 import { useRouter } from 'next/router';
 import { formatReferenceId } from '@/lib/referenceIds';
+import { authRedirect } from '@/lib/authRedirect';
 
 function fmtISO(d){ if(!d) return ''; try{ return new Date(d).toISOString().replace('T',' ').slice(0,19); }catch(e){ return String(d); } }
 
@@ -36,7 +37,7 @@ export default function InvoiceDetail({ invoice }){
 
 export async function getServerSideProps(ctx){
   const session = await getSession(ctx);
-  if(!session || session.user.role !== 'admin') return { redirect: { destination: '/login', permanent: false } };
+  if(!session || session.user?.role !== 'admin') return authRedirect(ctx);
   const { id } = ctx.params;
   await dbConnect();
   // try _id first, then invoiceId

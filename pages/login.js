@@ -36,10 +36,8 @@ export default function Login() {
                 setLoading(false);
               } else {
                 toast.push({ message: 'Login successful! Redirecting...', type: 'success' });
-                const session = await getSession();
-                if (session?.user?.role === 'admin') {
-                  await router.replace('/admin');
-                } else {
+                const destination = result?.url || callbackUrl;
+                if (!result?.url && callbackUrl === '/profile') {
                   let hasCartItems = false;
                   try {
                     const savedCart = JSON.parse(localStorage.getItem('sd_cart') || '{}');
@@ -48,6 +46,8 @@ export default function Login() {
                     hasCartItems = false;
                   }
                   await router.replace(hasCartItems ? '/cart' : '/shop');
+                } else {
+                  await router.replace(destination);
                 }
               }
             } catch (error) {

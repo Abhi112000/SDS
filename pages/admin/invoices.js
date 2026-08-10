@@ -3,6 +3,7 @@ import AdminSidebar from '@/components/AdminSidebar';
 import { useEffect, useMemo, useState } from 'react';
 import { useToast } from '@/components/Toast';
 import { customerKey, formatReferenceId } from '@/lib/referenceIds';
+import { authRedirect } from '@/lib/authRedirect';
 
 export default function AdminInvoices(){
   const [invoices, setInvoices] = useState([]);
@@ -175,6 +176,6 @@ export default function AdminInvoices(){
 
 export async function getServerSideProps(ctx){
   const session = await getSession(ctx);
-  if(!session || session.user.role !== 'admin') return { redirect: { destination: '/login', permanent: false } };
+  if(!session || session.user?.role !== 'admin') return authRedirect(ctx);
   return { props: {} };
 }

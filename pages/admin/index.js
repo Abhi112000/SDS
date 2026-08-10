@@ -12,6 +12,7 @@ import { useToast } from '@/components/Toast';
 import Pusher from 'pusher-js';
 import { mutate } from 'swr';
 import AdminSidebar from '@/components/AdminSidebar';
+import { authRedirect } from '@/lib/authRedirect';
 
 // include credentials for admin APIs (session cookie) so server can authenticate requests
 const fetcher = url => fetch(url, { credentials: 'include' }).then(r => r.json());
@@ -597,7 +598,7 @@ export default function Admin({ dbError = false, errorMessage = '' }){
 export async function getServerSideProps(ctx){
   const session = await getSession(ctx);
   // guard session.user safely to avoid server crashes when the session shape is unexpected
-  if(!session || session.user?.role !== 'admin') return { redirect: { destination: '/login', permanent: false } };
+  if(!session || session.user?.role !== 'admin') return authRedirect(ctx);
   try{
     await dbConnect();
     return { props: {} };

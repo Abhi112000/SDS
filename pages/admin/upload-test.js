@@ -2,6 +2,7 @@ import { getSession } from 'next-auth/react';
 import AdminSidebar from '@/components/AdminSidebar';
 import { useState } from 'react';
 import { useToast } from '@/components/Toast';
+import { authRedirect } from '@/lib/authRedirect';
 
 export default function UploadTest(){
   const [file, setFile] = useState(null);
@@ -66,6 +67,6 @@ export default function UploadTest(){
 
 export async function getServerSideProps(ctx){
   const session = await getSession(ctx);
-  if(!session || session.user.role !== 'admin') return { redirect: { destination: '/login', permanent: false } };
+  if(!session || session.user?.role !== 'admin') return authRedirect(ctx);
   return { props: {} };
 }

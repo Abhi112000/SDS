@@ -2,6 +2,7 @@ import { getSession } from 'next-auth/react';
 import AdminSidebar from '@/components/AdminSidebar';
 import { useEffect, useState } from 'react';
 import { useToast } from '@/components/Toast';
+import { authRedirect } from '@/lib/authRedirect';
 
 export default function AdminUsers() {
   const [users, setUsers] = useState([]);
@@ -75,6 +76,6 @@ export default function AdminUsers() {
 
 export async function getServerSideProps(ctx) {
   const session = await getSession(ctx);
-  if (!session || session.user?.role !== 'admin') return { redirect: { destination: '/login', permanent: false } };
+  if (!session || session.user?.role !== 'admin') return authRedirect(ctx);
   return { props: {} };
 }

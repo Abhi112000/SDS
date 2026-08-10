@@ -6,6 +6,7 @@ import useSWR, { mutate } from 'swr';
 import Pusher from 'pusher-js';
 import MessageRenderer from '../components/MessageRenderer';
 import { useToast } from '../components/Toast';
+import { authRedirect } from '@/lib/authRedirect';
 
 const fetcher = (url) => fetch(url).then(r => r.json());
 
@@ -151,7 +152,7 @@ function ReplyBox({ messageId, onSend, loading }){
 
 export async function getServerSideProps(ctx){
   const session = await getSession(ctx);
-  if(!session) return { redirect: { destination: '/login', permanent: false } };
+  if(!session) return authRedirect(ctx);
   // pass userId for pusher channel
   const user = session.user;
   return { props: { userId: user.id || user.sub || (user?.email || '') } };

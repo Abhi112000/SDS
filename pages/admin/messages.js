@@ -5,6 +5,7 @@ import { useToast } from '@/components/Toast';
 import MessageRenderer from '../../components/MessageRenderer';
 import ReplyBox from '../../components/ReplyBox';
 import AdminSidebar from '@/components/AdminSidebar';
+import { authRedirect } from '@/lib/authRedirect';
 
 const fetcher = url => fetch(url, { credentials: 'include' }).then(r => r.json());
 
@@ -103,6 +104,6 @@ export default function AdminMessages(){
 
 export async function getServerSideProps(ctx){
   const session = await getSession(ctx);
-  if(!session || session.user.role !== 'admin') return { redirect: { destination: '/login', permanent: false } };
+  if(!session || session.user?.role !== 'admin') return authRedirect(ctx);
   return { props: {} };
 }

@@ -4,6 +4,7 @@ import dbConnect from '@/lib/mongodb';
 import Category from '@/models/Category';
 import { useToast } from '@/components/Toast';
 import AdminSidebar from '@/components/AdminSidebar';
+import { authRedirect } from '@/lib/authRedirect';
 
 export default function AdminCategories({ initial = [] }){
   const [cats, setCats] = useState(initial || []);
@@ -75,7 +76,7 @@ export default function AdminCategories({ initial = [] }){
 
 export async function getServerSideProps(ctx){
   const session = await getSession(ctx);
-  if(!session || session.user.role !== 'admin') return { redirect: { destination: '/login', permanent: false } };
+  if(!session || session.user?.role !== 'admin') return authRedirect(ctx);
   await dbConnect();
   const initial = await Category.find({}).sort({ name: 1 }).lean();
   return { props: { initial: JSON.parse(JSON.stringify(initial || [])) } };

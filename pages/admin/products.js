@@ -4,6 +4,7 @@ import Product from '../../models/Product';
 import { useEffect, useState } from 'react';
 import { useToast } from '@/components/Toast';
 import AdminSidebar from '@/components/AdminSidebar';
+import { authRedirect } from '@/lib/authRedirect';
 
 // client-side resize helper — returns a Blob
 async function resizeImage(file, maxWidth = 1200, maxHeight = 1200, quality = 0.8){
@@ -550,7 +551,7 @@ export default function AdminProducts({ initial }){
 
 export async function getServerSideProps(ctx){
   const session = await getSession(ctx);
-  if(!session || session.user.role !== 'admin') return { redirect: { destination: '/login', permanent: false } };
+  if(!session || session.user?.role !== 'admin') return authRedirect(ctx);
   // Don't serialize the full product list into the page HTML — fetch client-side to avoid large page data.
   // This reduces initial page payload and prevents Next.js large page data warnings.
   await dbConnect();

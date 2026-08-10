@@ -1,5 +1,6 @@
 import useSWR from 'swr';
 import { getSession } from 'next-auth/react';
+import { authRedirect } from '@/lib/authRedirect';
 const fetcher = url=>fetch(url).then(r=>r.json());
 const adminWhatsApp = process.env.NEXT_PUBLIC_OWNER_WHATSAPP_NUMBER || '919818630972';
 const formatDateTime = value => {
@@ -76,6 +77,6 @@ export default function Orders(){
 
 export async function getServerSideProps(ctx){
   const session = await getSession(ctx);
-  if(!session) return { redirect: { destination: '/api/auth/signin', permanent: false } };
+  if(!session) return authRedirect(ctx);
   return { props: {} };
 }

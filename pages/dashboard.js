@@ -7,6 +7,7 @@ import Pusher from 'pusher-js';
 import { useToast } from '../components/Toast';
 import Breadcrumbs from '../components/Breadcrumbs';
 import { useRouter } from 'next/router';
+import { authRedirect } from '@/lib/authRedirect';
 
 const formatDate = (value) => {
   try {
@@ -162,7 +163,7 @@ export default function Dashboard({ user, orders }) {
 
 export async function getServerSideProps(ctx){
   const session = await getSession(ctx);
-  if(!session) return { redirect: { destination: '/login', permanent: false } };
+  if(!session) return authRedirect(ctx);
   if(session.user?.role === 'admin') return { redirect: { destination: '/admin', permanent: false } };
   await dbConnect();
   const user = await User.findOne({ email: session.user.email }).lean();

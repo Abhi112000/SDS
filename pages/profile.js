@@ -1,6 +1,7 @@
 import { getSession, useSession } from "next-auth/react";
 import { useState } from "react";
 import { useToast } from '@/components/Toast';
+import { authRedirect } from '@/lib/authRedirect';
 
 export default function Profile({ user }) {
   const { data: session } = useSession();
@@ -142,7 +143,7 @@ export default function Profile({ user }) {
 export async function getServerSideProps(ctx) {
   const session = await getSession(ctx);
   if (!session)
-    return { redirect: { destination: "/api/auth/signin", permanent: false } };
+    return authRedirect(ctx);
 
   return { props: { user: session.user } };
 }

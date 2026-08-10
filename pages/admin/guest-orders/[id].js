@@ -6,6 +6,7 @@ import AdminSidebar from '@/components/AdminSidebar';
 import { useRouter } from 'next/router';
 import { useToast } from '@/components/Toast';
 import { formatReferenceId } from '@/lib/referenceIds';
+import { authRedirect } from '@/lib/authRedirect';
 
 export default function GuestOrderDetail({ initialOrder }){
   const [order] = useState(initialOrder || {});
@@ -276,7 +277,7 @@ export default function GuestOrderDetail({ initialOrder }){
 
 export async function getServerSideProps(ctx){
   const session = await getSession(ctx);
-  if(!session || session.user.role !== 'admin') return { redirect: { destination: '/login', permanent: false } };
+  if(!session || session.user?.role !== 'admin') return authRedirect(ctx);
   const { id } = ctx.params;
   await dbConnect();
   const order = await GuestOrder.findById(id).lean();
