@@ -5,8 +5,15 @@ import User from "@/models/User";
 import bcrypt from "bcryptjs";
 
 const localUrl = 'http://localhost:3000';
+const fallbackProdUrl = 'https://sdstationery.vercel.app';
 const resolvedVercelUrl = process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : '';
-const resolvedNextAuthUrl = process.env.NEXTAUTH_URL || resolvedVercelUrl || localUrl;
+let resolvedNextAuthUrl = process.env.NEXTAUTH_URL || resolvedVercelUrl || '';
+if (process.env.NEXTAUTH_URL && process.env.NEXTAUTH_URL.includes('sds-qpcz.vercel.app') && resolvedVercelUrl) {
+  resolvedNextAuthUrl = resolvedVercelUrl;
+}
+if (!resolvedNextAuthUrl) {
+  resolvedNextAuthUrl = process.env.NODE_ENV === 'production' ? fallbackProdUrl : localUrl;
+}
 const NEXTAUTH_URL_VALUE = String(resolvedNextAuthUrl).replace(/\/$/, '');
 process.env.NEXTAUTH_URL = NEXTAUTH_URL_VALUE;
 
