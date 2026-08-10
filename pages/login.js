@@ -36,7 +36,19 @@ export default function Login() {
                 setLoading(false);
               } else {
                 toast.push({ message: 'Login successful! Redirecting...', type: 'success' });
-                await router.replace(result?.url || callbackUrl);
+                const session = await getSession();
+                if (session?.user?.role === 'admin') {
+                  await router.replace('/admin');
+                } else {
+                  let hasCartItems = false;
+                  try {
+                    const savedCart = JSON.parse(localStorage.getItem('sd_cart') || '{}');
+                    hasCartItems = Array.isArray(savedCart.items) && savedCart.items.length > 0;
+                  } catch (error) {
+                    hasCartItems = false;
+                  }
+                  await router.replace(hasCartItems ? '/cart' : '/shop');
+                }
               }
             } catch (error) {
               toast.push({ message: 'Login failed. Please try again.', type: 'error' });
@@ -83,7 +95,7 @@ export async function getServerSideProps(context) {
   if (session) {
     return {
       redirect: {
-        destination: context.query.callbackUrl || '/profile',
+        destination: session.user?.role === 'admin' ? '/admin' : (context.query.callbackUrl || '/profile'),
         permanent: false,
       },
     };

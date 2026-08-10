@@ -4,6 +4,7 @@ import Order from '../../../models/Order';
 import { useState } from 'react';
 import { useRouter } from 'next/router';
 import { useToast } from '@/components/Toast';
+import { formatReferenceId } from '@/lib/referenceIds';
 
 export default function AdminOrderDetail({ initialOrder }){
   const router = useRouter();
@@ -41,7 +42,7 @@ export default function AdminOrderDetail({ initialOrder }){
     if (intro) {
       lines.push(intro, '');
     }
-    lines.push(`Order ID: ${payload._id}`);
+    lines.push(`Order ID: ${formatReferenceId('order', payload, !!payload.guest)}`);
     lines.push(`Date: ${formatDateTime(payload.createdAt)}`);
     lines.push(`Status: ${payload.status || orderStatus}`);
     if (payload.name) lines.push(`Customer: ${payload.name}`);
@@ -74,7 +75,7 @@ export default function AdminOrderDetail({ initialOrder }){
   return (
     <div className="p-6">
           <button onClick={()=>router.back()} className="mb-4 px-3 py-1 border rounded">Back</button>
-      <h1 className="text-2xl font-bold mb-4">Order {order._id}</h1>
+      <h1 className="text-2xl font-bold mb-4">Order {formatReferenceId('order', order, !!order.guest)}</h1>
       <div className="bg-white p-4 rounded shadow mb-4">
         <div><strong>Customer:</strong> {order.customerName || order.userName || order.customerEmail}</div>
         <div><strong>Phone:</strong> {order.whatsapp || order.phone || ''}</div>

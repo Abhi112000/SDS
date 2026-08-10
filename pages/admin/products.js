@@ -52,6 +52,10 @@ export default function AdminProducts({ initial }){
   const [form, setForm] = useState({ title: '', price: '', sku: '', category: '', stock: 9999, description: '', images: [], featuredImage: '', featured: false, originalPrice: '', onSale: false, salePrice: '', tags: [], saleHistory: [] });
   const [editingId, setEditingId] = useState(null);
   const [uploadProgress, setUploadProgress] = useState({});
+  const [bulkFile, setBulkFile] = useState(null);
+  const [bulkRows, setBulkRows] = useState([]);
+  const [bulkDecisions, setBulkDecisions] = useState({});
+  const [bulkBusy, setBulkBusy] = useState(false);
 
   async function load(){
     setLoading(true);
@@ -76,6 +80,72 @@ export default function AdminProducts({ initial }){
       console.warn('load categories failed', e);
       toast?.push?.({ message: 'Unable to load categories', type: 'error' });
     }
+  }
+
+  async function downloadBulkTemplate(existing = false){
+    try{
+      const res = await fetch(`/api/admin/products/bulk${existing ? '?existing=1' : ''}`, { credentials: 'include' });
+      if(!res.ok) throw new Error('Unable to create template');
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = existing ? 'products-existing.xlsx' : 'products-template.xlsx';
+      link.click();
+      URL.revokeObjectURL(url);
+    }catch(error){
+      toast?.push?.({ message: error.message || 'Template download failed', type: 'error' });
+    }
+  }
+
+  function readFileAsBase64(file){
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(String(reader.result).split(',')[1]);
+      reader.onerror = reject;
+      reader.readAsDataURL(file);
+    });
+  }
+
+  async function previewBulkImport(){
+    if(!bulkFile) return toast?.push?.({ message: 'Select an Excel file first', type: 'error' });
+    setBulkBusy(true);
+    try{
+      const fileBase64 = await readFileAsBase64(bulkFile);
+      const res = await fetch('/api/admin/products/bulk', { method: 'POST', credentials: 'include', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ fileBase64 }) });
+      const data = await res.json();
+      if(!res.ok) throw new Error(data.error || 'Preview failed');
+      setBulkRows(data.rows || []);
+      setBulkDecisions(Object.fromEntries((data.rows || []).filter(row => row.duplicate).map(row => [String(row.rowNumber), row.matchType === 'productId' && row.changed ? 'update' : 'skip'])));
+      if(!(data.rows || []).length) toast?.push?.({ message: 'No product rows found in this Excel file', type: 'info' });
+    }catch(error){
+      toast?.push?.({ message: error.message || 'Preview failed', type: 'error' });
+    }finally{ setBulkBusy(false); }
+  }
+
+  async function importBulkProducts(){
+    const invalid = bulkRows.filter(row => row.errors?.length);
+    if(invalid.length) return toast?.push?.({ message: 'Fix invalid rows in the Excel file before importing', type: 'error' });
+    setBulkBusy(true);
+    try{
+      const fileBase64 = await readFileAsBase64(bulkFile);
+      const res = await fetch('/api/admin/products/bulk', { method: 'POST', credentials: 'include', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ fileBase64, rows: bulkRows, decisions: bulkDecisions, commit: true }) });
+      const data = await res.json();
+      if(!res.ok) throw new Error(data.error || 'Import failed');
+      toast?.push?.({ message: `Imported ${data.created} new, updated ${data.updated}, skipped ${data.skipped}`, type: 'success' });
+      setBulkFile(null);
+      setBulkRows([]);
+      setBulkDecisions({});
+      load();
+    }catch(error){
+      toast?.push?.({ message: error.message || 'Import failed', type: 'error' });
+    }finally{ setBulkBusy(false); }
+  }
+
+  function updateBulkRow(rowNumber, field, value){
+    setBulkRows(prev => prev.map(row => row.rowNumber === rowNumber ? { ...row, [field]: value, changed: row.productId ? true : row.changed, errors: [] } : row));
+    const row = bulkRows.find(item => item.rowNumber === rowNumber);
+    if(row?.productId) setBulkDecisions(prev => ({ ...prev, [String(rowNumber)]: 'update' }));
   }
 
   function makeThree(src){
@@ -324,6 +394,47 @@ export default function AdminProducts({ initial }){
             <a href="/admin" className="px-3 py-1 bg-gray-100 rounded">Back to dashboard</a>
           </div>
 
+          <section className="bg-white p-4 rounded shadow mb-6">
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <div>
+                <h2 className="text-lg font-semibold">Bulk import products</h2>
+                <p className="text-sm text-gray-600">Download the category-wise Excel template. SKU and images are managed separately.</p>
+              </div>
+              <div className="flex flex-wrap gap-2">
+                <button type="button" onClick={()=>downloadBulkTemplate(false)} className="px-3 py-2 border rounded">Download blank template</button>
+                <button type="button" onClick={()=>downloadBulkTemplate(true)} className="px-3 py-2 border rounded">Download existing products</button>
+              </div>
+            </div>
+            <div className="mt-4 flex flex-wrap items-center gap-3">
+              <input type="file" accept=".xlsx,.xls" onChange={e=>{ setBulkFile(e.target.files?.[0] || null); setBulkRows([]); }} />
+              <button type="button" onClick={previewBulkImport} disabled={!bulkFile || bulkBusy} className="px-3 py-2 bg-blue-600 text-white rounded disabled:opacity-60">{bulkBusy ? 'Reading...' : 'Preview import'}</button>
+            </div>
+            {bulkRows.length > 0 && (
+              <div className="mt-4 overflow-auto">
+                <table className="w-full text-sm border-collapse">
+                  <thead><tr className="text-left border-b"><th className="p-2">Row</th><th className="p-2">Title</th><th className="p-2">Description</th><th className="p-2">Price</th><th className="p-2">Original</th><th className="p-2">Sale price</th><th className="p-2">On sale</th><th className="p-2">Stock</th><th className="p-2">Featured</th><th className="p-2">Category</th><th className="p-2">Status</th><th className="p-2">Action</th></tr></thead>
+                  <tbody>{bulkRows.map(row => (
+                    <tr key={row.rowNumber} className="border-b align-top">
+                      <td className="p-2">{row.rowNumber}</td>
+                      <td className="p-2"><input value={row.title} onChange={e=>updateBulkRow(row.rowNumber, 'title', e.target.value)} className="w-40 p-1 border rounded" /></td>
+                      <td className="p-2"><input value={row.description} onChange={e=>updateBulkRow(row.rowNumber, 'description', e.target.value)} className="w-52 p-1 border rounded" /></td>
+                      <td className="p-2"><input type="number" value={row.price} onChange={e=>updateBulkRow(row.rowNumber, 'price', Number(e.target.value))} className="w-24 p-1 border rounded" /></td>
+                      <td className="p-2"><input type="number" value={row.originalPrice ?? ''} onChange={e=>updateBulkRow(row.rowNumber, 'originalPrice', e.target.value === '' ? undefined : Number(e.target.value))} className="w-24 p-1 border rounded" /></td>
+                      <td className="p-2"><input type="number" value={row.salePrice ?? ''} onChange={e=>updateBulkRow(row.rowNumber, 'salePrice', e.target.value === '' ? undefined : Number(e.target.value))} className="w-24 p-1 border rounded" /></td>
+                      <td className="p-2"><input type="checkbox" checked={!!row.onSale} onChange={e=>updateBulkRow(row.rowNumber, 'onSale', e.target.checked)} /></td>
+                      <td className="p-2"><input type="number" value={row.stock} onChange={e=>updateBulkRow(row.rowNumber, 'stock', Number(e.target.value))} className="w-20 p-1 border rounded" /></td>
+                      <td className="p-2"><input type="checkbox" checked={!!row.featured} onChange={e=>updateBulkRow(row.rowNumber, 'featured', e.target.checked)} /></td>
+                      <td className="p-2"><input value={row.category} onChange={e=>updateBulkRow(row.rowNumber, 'category', e.target.value)} className="w-28 p-1 border rounded" /></td>
+                      <td className={`p-2 ${row.errors?.length ? 'text-red-600' : row.duplicate ? (row.changed ? 'text-orange-600' : 'text-gray-500') : 'text-green-600'}`}>{row.errors?.length ? row.errors.join(', ') : row.duplicate ? (row.changed ? 'Existing - changed' : 'Existing - unchanged') : 'New product'}</td>
+                      <td className="p-2">{row.duplicate ? <select value={bulkDecisions[String(row.rowNumber)] || 'skip'} onChange={e=>setBulkDecisions(prev=>({...prev, [String(row.rowNumber)]: e.target.value}))} className="p-1 border rounded"><option value="skip">Skip</option><option value="update">Update existing</option></select> : 'Create'}</td>
+                    </tr>
+                  ))}</tbody>
+                </table>
+                <button type="button" onClick={importBulkProducts} disabled={bulkBusy} className="mt-4 px-4 py-2 bg-green-600 text-white rounded disabled:opacity-60">{bulkBusy ? 'Importing...' : 'Confirm and import'}</button>
+              </div>
+            )}
+          </section>
+
           <div className="grid md:grid-cols-2 gap-6">
             <div className="bg-white p-4 rounded shadow">
               <h2 className="text-lg font-semibold mb-3">Create / Edit Product</h2>
@@ -371,8 +482,8 @@ export default function AdminProducts({ initial }){
                 <div>
                   <label className="block text-sm">Featured image</label>
                   <input type="file" accept="image/*" onChange={handleFeaturedFileChange} />
-                  {form.featuredImage && (typeof form.featuredImage === 'object' ? form.featuredImage.url : form.featuredImage) && (
-                    <div className="mt-2"><img src={(form.featuredImage && form.featuredImage.url) || form.featuredImage} alt="featured" className="h-24 object-contain" /></div>
+                  {((typeof form.featuredImage === 'object' ? form.featuredImage.url : form.featuredImage) || (typeof form.image === 'object' ? form.image.url : form.image)) && (
+                    <div className="mt-2"><img src={(typeof form.featuredImage === 'object' ? form.featuredImage.url : form.featuredImage) || (typeof form.image === 'object' ? form.image.url : form.image)} alt="featured" className="h-24 object-contain" /></div>
                   )}
                 </div>
 

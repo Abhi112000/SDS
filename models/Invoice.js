@@ -8,6 +8,11 @@ const InvoiceSchema = new mongoose.Schema({
   subtotal: Number,
   discount: Number,
   shipping: Number,
+  deliveryPincode: String,
+  deliveryDistanceKm: Number,
+  deliveryRoughDistanceKm: Number,
+  deliveryLocationPending: { type: Boolean, default: false },
+  deliveryLocationUrl: String,
   tax: Number,
   total: Number,
   // payment/status fields

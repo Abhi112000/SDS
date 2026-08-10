@@ -9,7 +9,14 @@ const GuestOrderSchema = new mongoose.Schema({
   whatsapp: String,
   email: String,
   address: String,
+  deliveryPincode: String,
   locationUrl: String,
+  deliveryLatitude: Number,
+  deliveryLongitude: Number,
+  deliveryDistanceKm: Number,
+  deliveryRoughDistanceKm: Number,
+  deliveryLocationPending: { type: Boolean, default: false },
+  deliveryCharge: { type: Number, default: 0 },
   createdAt: { type: Date, default: Date.now }
 });
 

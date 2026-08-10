@@ -32,7 +32,7 @@ export default function AdminSidebar(){
         </div>
         <nav className="space-y-2 text-sm">
           <Link href="/admin" className="block px-3 py-2 rounded hover:bg-gray-50">Dashboard</Link>
-          <Link href="/admin/orders" className="block px-3 py-2 rounded hover:bg-gray-50">Orders</Link>
+          <Link href="/admin/order-history" className={`block px-3 py-2 rounded ${activeClass('/admin/order-history')}`}>Order History</Link>
           <Link href="/admin/sales" className={`block px-3 py-2 rounded ${activeClass('/admin/sales')}`}>Sales</Link>
           <div className="relative">
             <Link href="/admin/products" className={`block px-3 py-2 rounded ${activeClass('/admin/products')}`} onMouseEnter={()=> fetchLowItems(setLowItemsProducts, setTooltipVisibleProducts, setLoadingLowProducts)} onMouseLeave={()=> setTooltipVisibleProducts(false)}>
@@ -55,7 +55,8 @@ export default function AdminSidebar(){
             )}
           </div>
           <Link href="/admin/coupons" className="block px-3 py-2 rounded hover:bg-gray-50">Coupons</Link>
-          <Link href="/admin/invoices" className="block px-3 py-2 rounded hover:bg-gray-50">Invoices</Link>
+          <Link href="/admin/invoice-history" className={`block px-3 py-2 rounded ${activeClass('/admin/invoice-history')}`}>Invoice History</Link>
+          <Link href="/admin/users" className={`block px-3 py-2 rounded ${activeClass('/admin/users')}`}>Users</Link>
           <Link href="/admin/profile" className="block px-3 py-2 rounded hover:bg-gray-50">Profile</Link>
         </nav>
       </div>

@@ -5,6 +5,7 @@ import { useState } from 'react';
 import AdminSidebar from '@/components/AdminSidebar';
 import { useRouter } from 'next/router';
 import { useToast } from '@/components/Toast';
+import { formatReferenceId } from '@/lib/referenceIds';
 
 export default function GuestOrderDetail({ initialOrder }){
   const [order] = useState(initialOrder || {});
@@ -189,7 +190,7 @@ export default function GuestOrderDetail({ initialOrder }){
             }} className="px-3 py-1 bg-blue-600 text-white rounded">{printing ? 'Printing…' : 'Download Invoice (PDF)'}</button>
           </div>
 
-          <h1 className="text-2xl font-bold mb-4">Guest Order {order._id}</h1>
+          <h1 className="text-2xl font-bold mb-4">Guest Order {formatReferenceId('order', order, true)}</h1>
 
           <div className="bg-white p-4 rounded shadow mb-4">
             <div><strong>Name:</strong> {order.name || order.customerName || ''}</div>

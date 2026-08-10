@@ -354,116 +354,28 @@ export default function Admin({ dbError = false, errorMessage = '' }){
 
       <section className="grid md:grid-cols-2 gap-6">
         <div className="bg-white p-4 rounded shadow">
-          <h3 className="font-semibold mb-2">Recent Orders</h3>
+          <div className="flex items-center justify-between mb-2">
+            <h3 className="font-semibold">Contact messages</h3>
+            <Link href="/admin/messages" className="text-sm text-blue-600">Manage messages</Link>
+          </div>
           <ul>
-            {orders?.slice(0,10).map(o=> (
-              <li key={o._id} className="py-2 border-b">
-                <div className="flex items-center justify-between">
-                  <div>{o._id} — ₹{o.subtotal} — {o.status}</div>
-                  <div>
-                    <button onClick={() => setExpandedOrders(prev => ({ ...prev, [o._id]: !prev[o._id] }))} className="text-sm px-2 py-1 bg-gray-100 rounded">Details</button>
-                  </div>
-                </div>
-                <div className={`${expandedOrders[o._id] ? 'block' : 'hidden'} mt-2 text-sm text-gray-700`}>
-                  <div><strong>Name:</strong> {o.name}</div>
-                  <div><strong>Phone:</strong> {o.phone}</div>
-                  <div><strong>Email:</strong> {o.email}</div>
-                  <div><strong>Address:</strong> {o.address}</div>
-                  <div className="mt-2"><strong>Items:</strong>
-                    <ul className="list-disc pl-6 mt-1">
-                      {o.items.map(it=> (
-                        <li key={it.productId}>{it.title} — {it.qty} × ₹{it.price}</li>
-                      ))}
-                    </ul>
-                  </div>
-                  {o.coupon && <div className="mt-2"><strong>Coupon:</strong> {o.coupon.code} — Discount: ₹{o.coupon.discountAmount || 0}</div>}
-                </div>
+            {messages?.filter(m => (m.type || 'contact') === 'contact').slice(0,5).map(m=> (
+              <li key={m._id} className="py-2 border-b">
+                <Link href="/admin/messages" className="block hover:underline text-sm"><span className="font-medium">{m.fromName || 'Visitor'}</span> • {m.subject || 'Contact enquiry'}{!m.read && <span className="ml-2 text-xs text-blue-600">New</span>}<div className="mt-1 text-xs text-gray-500 line-clamp-2">{m.text}</div></Link>
               </li>
             ))}
           </ul>
         </div>
         <div className="bg-white p-4 rounded shadow">
           <div className="flex items-center justify-between mb-2">
-            <h3 className="font-semibold">Messages</h3>
-            <Link href="/admin/messages" className="text-sm text-blue-600">Manage messages</Link>
+            <h3 className="font-semibold">Feedback & update requests</h3>
+            <Link href="/admin/messages" className="text-sm text-blue-600">Open inbox</Link>
           </div>
           <ul>
-            {messages?.slice(0,10).map(m=> (
-              <li key={m._id} className="py-2 border-b">
-                <Link href="/admin/messages" className="hover:underline text-sm">{m.fromName}: {m.subject}</Link>
-              </li>
+            {messages?.filter(m => ['feedback', 'update-request', 'support'].includes(m.type)).slice(0,5).map(m=> (
+              <li key={m._id} className="py-2 border-b"><Link href="/admin/messages" className="block hover:underline text-sm"><span className="font-medium">{m.fromName || 'Customer'}</span> • {m.type === 'update-request' ? 'Product update request' : m.type === 'feedback' ? 'Feedback' : 'Support request'}{!m.read && <span className="ml-2 text-xs text-blue-600">New</span>}<div className="mt-1 text-xs text-gray-500 line-clamp-2">{m.text}</div></Link></li>
             ))}
           </ul>
-        </div>
-      </section>
-
-      {/* Invoice history */}
-      <section className="mt-6">
-        <h3 className="text-lg font-semibold mb-2">Invoices History</h3>
-        <div className="bg-white p-4 rounded shadow">
-            <div className="mb-3 text-sm text-gray-600">Saved invoices created from admin or orders. Click View to open printable invoice.</div>
-          <ul>
-            {invoices?.invoices?.length ? invoices.invoices.map(inv => (
-              <li key={inv._id} className="py-2 border-b flex items-center justify-between">
-                <div>
-                  <div className="text-sm">{inv.invoiceId} — ₹{(inv.total||0).toFixed(2)}</div>
-                  <div className="text-xs text-gray-500">{new Date(inv.createdAt).toISOString().replace('T',' ').slice(0,19)} — {inv.type}</div>
-                </div>
-                <div className="flex items-center gap-2">
-                  <button onClick={() => setSelectedInvoice(inv)} className="px-2 py-1 bg-gray-100 rounded text-sm">View</button>
-                </div>
-              </li>
-            )) : <li className="text-sm text-gray-500">No invoices yet.</li>}
-          </ul>
-        </div>
-      </section>
-
-      {/* Custom Invoice creator for offline/phone orders */}
-      <section className="mt-6">
-        <div className="bg-white p-4 rounded shadow mb-4">
-          <div className="flex items-center justify-between">
-            <h3 className="text-lg font-semibold">Create Custom Invoice</h3>
-            <div>
-              <button onClick={openInvoicePanel} className="px-3 py-1 bg-green-600 text-white rounded">Create Invoice</button>
-            </div>
-          </div>
-          <p className="text-sm text-gray-600 mt-2">Create an invoice for offline purchases, fill customer and items, then download printable invoice (PDF via Print dialog).</p>
-        </div>
-      </section>
-
-      {/* Invoice settings */}
-      <section className="mt-6">
-        <div className="bg-white p-4 rounded shadow mb-4">
-          <div className="flex items-center justify-between">
-            <h3 className="text-lg font-semibold">Invoice Settings</h3>
-            <div>
-              <button onClick={saveInvoiceSettings} disabled={settingsBusy} className="px-3 py-1 bg-blue-600 text-white rounded">{settingsBusy? 'Saving...' : 'Save Settings'}</button>
-            </div>
-          </div>
-          <p className="text-sm text-gray-600 mt-2">Configure header, logo and watermark used in printable invoices.</p>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mt-3">
-            <div>
-              <label className="block text-sm">Brand name</label>
-              <input value={settingsDraft?.brandName || ''} onChange={e=>setSettingsDraft(prev=>({ ...(prev||{}), brandName: e.target.value }))} className="p-2 border rounded w-full" />
-            </div>
-            {/* Logo path removed — invoices will use /images/logo.jpeg by default */}
-            <div className="md:col-span-2">
-              <label className="block text-sm">Address</label>
-              <textarea value={settingsDraft?.address || ''} onChange={e=>setSettingsDraft(prev=>({ ...(prev||{}), address: e.target.value }))} className="p-2 border rounded w-full" rows={2} />
-            </div>
-            <div>
-              <label className="block text-sm">Phone</label>
-              <input value={settingsDraft?.phone || ''} onChange={e=>setSettingsDraft(prev=>({ ...(prev||{}), phone: e.target.value }))} className="p-2 border rounded w-full" />
-            </div>
-            <div>
-              <label className="block text-sm">Email</label>
-              <input value={settingsDraft?.email || ''} onChange={e=>setSettingsDraft(prev=>({ ...(prev||{}), email: e.target.value }))} className="p-2 border rounded w-full" />
-            </div>
-            <div className="md:col-span-2">
-              <label className="block text-sm">Watermark text</label>
-              <input value={settingsDraft?.watermarkText || ''} onChange={e=>setSettingsDraft(prev=>({ ...(prev||{}), watermarkText: e.target.value }))} className="p-2 border rounded w-full" />
-            </div>
-          </div>
         </div>
       </section>
 
@@ -553,26 +465,6 @@ export default function Admin({ dbError = false, errorMessage = '' }){
           </div>
         </div>
       )}
-      <section className="mt-6">
-        <h3 className="text-lg font-semibold mb-2">Guest Orders</h3>
-        <div className="bg-white p-4 rounded shadow">
-          <ul>
-            {guestOrders?.slice(0,20).map(g=> (
-              <li key={g._id} className="py-2 border-b flex items-center justify-between">
-                <div>
-                  <div className="text-sm">{g._id}</div>
-                  <div className="text-sm text-gray-700">{g.name} — ₹{g.subtotal}</div>
-                  <div className="text-xs text-gray-500">{new Date(g.createdAt || g.createdAt).toISOString().replace('T',' ').slice(0,19)}</div>
-                </div>
-                <div>
-                  <button onClick={() => setSelectedOrder(g)} className="px-2 py-1 bg-gray-100 rounded text-sm">View details</button>
-                </div>
-              </li>
-            ))}
-          </ul>
-        </div>
-      </section>
-
       {/* Modal for selected guest order details */}
       {selectedOrder && (
         <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
@@ -693,36 +585,6 @@ export default function Admin({ dbError = false, errorMessage = '' }){
           </div>
         </div>
       )}
-
-      <section className="mt-6">
-        <h3 className="text-lg font-semibold mb-2">Users</h3>
-        <div className="bg-white p-4 rounded shadow">
-          <table className="w-full text-sm">
-            <thead><tr><th className="text-left p-2">ID</th><th className="text-left p-2">Name</th><th className="text-left p-2">Email</th><th className="text-left p-2">Role</th><th className="text-left p-2">Actions</th></tr></thead>
-            <tbody>
-              {users?.users?.map(u => (
-                <tr key={u._id} className="border-b">
-                  <td className="p-2 break-words max-w-[200px]">{u._id}</td>
-                  <td className="p-2">{u.name}</td>
-                  <td className="p-2">{u.email}</td>
-                  <td className="p-2">
-                    <select value={u.role} onChange={e=>updateUser(u._id, { role: e.target.value })} className="p-1 border rounded">
-                      <option value="user">user</option>
-                      <option value="admin">admin</option>
-                    </select>
-                  </td>
-                  <td className="p-2">
-                    <div className="flex items-center gap-2">
-                      <label className="flex items-center gap-1"><input type="checkbox" checked={!!u.disabled} onChange={e=>updateUser(u._id, { disabled: e.target.checked })} /> Disabled</label>
-                      <button disabled={!!userBusy[u._id]} onClick={()=>deleteUser(u._id)} className="text-sm text-red-600">Delete</button>
-                    </div>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      </section>
 
       {/* Recent orders chart removed */}
         </main>

@@ -2,8 +2,20 @@ import { createContext, useEffect, useState } from 'react';
 export const CartContext = createContext();
 export function CartProvider({ children }){
   const [cart, setCart] = useState({ items: [], coupon: null });
-  useEffect(()=>{ try{ const raw = localStorage.getItem('sd_cart'); if(raw) setCart(JSON.parse(raw)); }catch{} }, []);
-  useEffect(()=> localStorage.setItem('sd_cart', JSON.stringify(cart)), [cart]);
+  const [hydrated, setHydrated] = useState(false);
+  useEffect(()=>{
+    try{
+      const raw = localStorage.getItem('sd_cart');
+      if(raw){
+        const saved = JSON.parse(raw);
+        if(saved && Array.isArray(saved.items)) setCart({ items: saved.items, coupon: saved.coupon || null });
+      }
+    }catch{}
+    setHydrated(true);
+  }, []);
+  useEffect(()=>{
+    if(hydrated) localStorage.setItem('sd_cart', JSON.stringify(cart));
+  }, [cart, hydrated]);
   const add = (product, qty=1)=> setCart(prev=>{
     const items = [...prev.items];
     const productId = product._id || product.sku || (product.title || '').replace(/\s+/g,'-').toLowerCase();

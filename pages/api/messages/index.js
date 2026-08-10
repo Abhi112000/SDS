@@ -38,25 +38,33 @@ export default async function handler(req,res){
     return res.status(200).json(msgs);
   }
   if(req.method === 'POST'){
-    const session = await getServerSession(req, res, authOptions);
-    const { subject, text, orderId, name, email, phone, targetUserId, targetEmail } = req.body;
-    const isAdmin = session?.user?.role === 'admin';
-    const message = await Message.create({
-      fromUserId: isAdmin ? null : session?.user?.id || null,
-      fromName: isAdmin ? (session?.user?.name || 'Support') : (session?.user?.name || name),
-      fromEmail: isAdmin ? (session?.user?.email || process.env.ADMIN_EMAIL || 'support@example.com') : (session?.user?.email || email),
-      toUserId: isAdmin ? targetUserId || null : null,
-      toEmail: isAdmin ? targetEmail || null : null,
-      fromPhone: phone || '',
-      subject,
-      text,
-      orderId
-    });
-    try{ await pusher.trigger('admin-channel', 'new-message', { messageId: message._id, subject, fromName: message.fromName }); }catch(e){ console.warn('pusher notify admin failed', e?.message || e); }
-    if(isAdmin && targetUserId){
-      try{ await pusher.trigger(`user-${targetUserId}`, 'new-message', { messageId: message._id, subject, text, orderId }); }catch(e){ console.warn('pusher notify user failed', e?.message || e); }
+    try {
+      const session = await getServerSession(req, res, authOptions).catch(() => null);
+      const { subject, text, orderId, name, email, phone, address, targetUserId, targetEmail, type } = req.body || {};
+      if (!text || !String(text).trim()) return res.status(400).json({ error: 'Message text is required' });
+      const isAdmin = session?.user?.role === 'admin';
+      const message = await Message.create({
+        fromUserId: isAdmin ? null : session?.user?.id || null,
+        fromName: isAdmin ? (session?.user?.name || 'Support') : (session?.user?.name || name || 'Website visitor'),
+        fromEmail: isAdmin ? (session?.user?.email || process.env.ADMIN_EMAIL || 'support@example.com') : (session?.user?.email || email || ''),
+        toUserId: isAdmin ? targetUserId || null : null,
+        toEmail: isAdmin ? targetEmail || null : null,
+        fromPhone: phone || '',
+        fromAddress: address || '',
+        subject: subject || 'Customer message',
+        text: String(text).trim(),
+        type: ['contact', 'feedback', 'update-request', 'support'].includes(type) ? type : 'support',
+        orderId
+      });
+      try{ await pusher.trigger('admin-channel', 'new-message', { messageId: message._id, subject: message.subject, fromName: message.fromName }); }catch(e){ console.warn('pusher notify admin failed', e?.message || e); }
+      if(isAdmin && targetUserId){
+        try{ await pusher.trigger(`user-${targetUserId}`, 'new-message', { messageId: message._id, subject: message.subject, text: message.text, orderId }); }catch(e){ console.warn('pusher notify user failed', e?.message || e); }
+      }
+      return res.status(201).json({ ok:true, message });
+    } catch (error) {
+      console.error('message create failed:', error?.message || error);
+      return res.status(500).json({ error: 'Unable to save message. Please try again.' });
     }
-    return res.status(201).json({ ok:true, message });
   }
   res.status(405).end();
 }

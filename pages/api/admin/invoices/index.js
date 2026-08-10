@@ -24,6 +24,15 @@ export default async function handler(req, res){
       const body = req.body || {};
       // ensure invoiceId
       if(!body.invoiceId) body.invoiceId = `INV-${Date.now()}`;
+      const payload = body.payload || {};
+      const deliveryCharge = Number(body.shipping ?? body.deliveryCharge ?? payload.deliveryCharge ?? 0);
+      body.shipping = deliveryCharge;
+      body.deliveryPincode = body.deliveryPincode || payload.deliveryPincode || '';
+      body.deliveryDistanceKm = body.deliveryDistanceKm ?? payload.deliveryDistanceKm ?? null;
+      body.deliveryRoughDistanceKm = body.deliveryRoughDistanceKm ?? payload.deliveryRoughDistanceKm ?? null;
+      body.deliveryLocationPending = body.deliveryLocationPending ?? payload.deliveryLocationPending ?? false;
+      body.deliveryLocationUrl = body.deliveryLocationUrl || payload.locationUrl || '';
+      if(payload.deliveryCharge !== undefined || body.total === undefined) body.total = Number(body.subtotal || payload.subtotal || 0) - Number(body.discount || 0) + deliveryCharge + Number(body.tax || 0);
       const createdBy = (session && session.user && (session.user.id || session.user._id)) || (token && (token.sub || token.id || (token.user && (token.user.id || token.user._id)))) || '';
       const doc = await Invoice.create({ ...body, createdBy });
       return res.status(201).json({ invoice: doc });

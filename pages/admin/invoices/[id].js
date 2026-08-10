@@ -3,6 +3,7 @@ import dbConnect from '@/lib/mongodb';
 import Invoice from '@/models/Invoice';
 import AdminSidebar from '@/components/AdminSidebar';
 import { useRouter } from 'next/router';
+import { formatReferenceId } from '@/lib/referenceIds';
 
 function fmtISO(d){ if(!d) return ''; try{ return new Date(d).toISOString().replace('T',' ').slice(0,19); }catch(e){ return String(d); } }
 
@@ -15,7 +16,7 @@ export default function InvoiceDetail({ invoice }){
         <AdminSidebar />
         <main className="md:col-span-3">
           <button onClick={()=>router.back()} className="mb-4 px-3 py-1 border rounded">Back</button>
-          <h1 className="text-2xl font-bold mb-4">Invoice {invoice.invoiceId || invoice._id}</h1>
+          <h1 className="text-2xl font-bold mb-4">Invoice {formatReferenceId('invoice', invoice, invoice.payload?.guest === true)}</h1>
           <div className="bg-white p-4 rounded shadow mb-4">
             <div><strong>Status:</strong> {invoice.status}</div>
             <div><strong>Total:</strong> ₹{invoice.total}</div>

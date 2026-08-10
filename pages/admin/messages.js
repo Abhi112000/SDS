@@ -68,8 +68,9 @@ export default function AdminMessages(){
           <div key={m._id} className={`card ${m.read? 'opacity-70' : 'border-l-4 border-blue-500'}`}>
             <div className="flex justify-between">
               <div>
-          <div className="font-medium">{m.subject}{m.orderId ? <span className="ml-2 text-xs text-gray-500">(Order: {m.orderId})</span> : null}</div>
-          <div className="text-sm text-gray-500">From: {m.fromName} • {m.fromEmail}</div>
+          <div className="font-medium">{m.subject || 'Customer message'} <span className="ml-2 text-xs rounded bg-gray-100 px-2 py-1">{m.type || 'support'}</span>{m.orderId ? <span className="ml-2 text-xs text-gray-500">(Order: {m.orderId})</span> : null}</div>
+          <div className="text-sm text-gray-500">From: {m.fromName || 'Visitor'} • {m.fromEmail || 'No email'}{m.fromPhone ? ` • ${m.fromPhone}` : ''}</div>
+          {m.fromAddress && <div className="text-xs text-gray-500 mt-1">Address: {m.fromAddress}</div>}
               </div>
               <div>
                 {!m.read && <button onClick={()=>markRead(m._id)} className="px-2 py-1 btn-primary">Mark read</button>}

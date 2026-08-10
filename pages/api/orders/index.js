@@ -34,7 +34,7 @@ export default async function handler(req, res) {
       }
     }catch(e){ /* ignore */ }
   }
-  const { items, subtotal, couponCode, name, phone, email, address, locationUrl, whatsapp } = req.body;
+  const { items, subtotal, couponCode, name, phone, email, address, deliveryPincode, locationUrl, whatsapp, deliveryLatitude, deliveryLongitude, deliveryDistanceKm, deliveryRoughDistanceKm, deliveryLocationPending, deliveryCharge } = req.body;
 
     if (!name || !phone || !address) return res.status(400).json({ error: "Missing required fields" });
     // Validate items - basic
@@ -66,7 +66,7 @@ export default async function handler(req, res) {
 
     let order;
     if(!session){
-      const g = await GuestOrder.create({ items, subtotal, coupon: couponResult, name, phone, email, address, locationUrl, whatsapp });
+      const g = await GuestOrder.create({ items, subtotal, coupon: couponResult, name, phone, email, address, deliveryPincode, locationUrl, whatsapp, deliveryLatitude, deliveryLongitude, deliveryDistanceKm, deliveryRoughDistanceKm, deliveryLocationPending, deliveryCharge: Number(deliveryCharge || 0) });
       order = g;
     } else {
       // Save as a user order and also include profile fields for admin visibility
@@ -80,8 +80,15 @@ export default async function handler(req, res) {
         phone,
         email,
         address,
+        deliveryPincode,
         locationUrl,
         whatsapp,
+        deliveryLatitude,
+        deliveryLongitude,
+        deliveryDistanceKm,
+        deliveryRoughDistanceKm,
+        deliveryLocationPending,
+        deliveryCharge: Number(deliveryCharge || 0),
         createdAt: new Date()
       });
     }

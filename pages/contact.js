@@ -7,11 +7,22 @@ import { useRouter } from 'next/router';
 export default function Contact(){
   const router = useRouter();
   const [form, setForm] = useState({ name:'', email:'', phone:'', address:'', locationUrl:'', subject:'', text:'' });
+  const [sent, setSent] = useState(false);
+  const [sending, setSending] = useState(false);
   const toast = useToast();
   const submit = async (e)=>{
     e.preventDefault();
-    await fetch('/api/messages', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(form) });
-    toast?.push?.({ message: 'Message sent', type: 'success' });
+    setSending(true);
+    try {
+      const response = await fetch('/api/messages', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ ...form, type: 'contact', subject: form.subject || 'Website contact enquiry' }) });
+      const result = await response.json().catch(() => ({}));
+      if(!response.ok) throw new Error(result.error || 'Message could not be sent');
+      setSent(true);
+      toast?.push?.({ message: 'Message sent successfully', type: 'success' });
+      setForm({ name:'', email:'', phone:'', address:'', locationUrl:'', subject:'', text:'' });
+    } catch(error) {
+      toast?.push?.({ message: error.message, type: 'error' });
+    } finally { setSending(false); }
   }
   return (
     <div className="contact-page-shell">
@@ -25,6 +36,7 @@ export default function Contact(){
       </div>
       <div className="contact-layout">
         <form className="contact-form-panel contact-form-panel--active" onSubmit={submit}>
+          {sent && <div className="mb-4 rounded-lg border border-green-200 bg-green-50 p-4 text-sm text-green-800" role="status">Thank you for reaching out. Our team has received your message and will contact you shortly.</div>}
           <div className="contact-form-head">
             <h2 className="contact-form-title">Send a message</h2>
             <p className="contact-form-subtitle">We usually reply during store hours.</p>
@@ -44,11 +56,15 @@ export default function Contact(){
             <input placeholder="Phone" className="form-field mt-2" value={form.phone} onChange={e=>setForm({...form,phone:e.target.value})} />
           </label>
           <label className="block mt-4">
+            <span className="contact-field-label">Address (optional)</span>
+            <input placeholder="Address" className="form-field mt-2" value={form.address} onChange={e=>setForm({...form,address:e.target.value})} />
+          </label>
+          <label className="block mt-4">
             <span className="contact-field-label">Message</span>
             <textarea placeholder="How can we help?" className="form-field mt-2 min-h-[130px] resize-y" value={form.text} onChange={e=>setForm({...form,text:e.target.value})} />
           </label>
           <div className="contact-action-row">
-            <button className="contact-submit-button">Send</button>
+            <button disabled={sending} className="contact-submit-button disabled:opacity-60">{sending ? 'Sending...' : 'Send message'}</button>
             <Link href="/shop" className="contact-browse-button">Browse Products</Link>
           </div>
         </form>
