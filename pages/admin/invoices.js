@@ -55,6 +55,11 @@ export default function AdminInvoices(){
     setLoading(false);
   }
 
+  function openCustomInvoice(){
+    setInvoiceCustomer({ name: '', phone: '', email: '', address: '' });
+    setInvoiceItems([{ title: '', qty: 1, price: 0 }]);
+  }
+
   useEffect(()=>{ load(); },[]);
 
   useEffect(()=>{
@@ -104,8 +109,13 @@ export default function AdminInvoices(){
           </div>
 
           <div className="bg-white p-4 rounded shadow mb-4">
-            <label className="block text-sm font-medium mb-1">Search invoices</label>
-            <input value={search} onChange={e=>setSearch(e.target.value)} placeholder="Search name, phone, email, address, invoice ID..." className="w-full p-2 border rounded" />
+            <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+              <div className="w-full md:w-[calc(100%-210px)]">
+                <label className="block text-sm font-medium mb-1">Search invoices</label>
+                <input value={search} onChange={e=>setSearch(e.target.value)} placeholder="Search name, phone, email, address, invoice ID..." className="w-full p-2 border rounded" />
+              </div>
+              <button type="button" onClick={openCustomInvoice} className="w-full md:w-auto px-3 py-2 bg-blue-600 text-white rounded text-sm">Create custom invoice</button>
+            </div>
           </div>
 
           <div className="bg-white p-4 rounded shadow">

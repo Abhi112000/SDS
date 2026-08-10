@@ -1,13 +1,18 @@
 import dbConnect from '@/lib/dbConnect';
 import Coupon from '@/models/Coupon';
-import { getSession } from 'next-auth/react';
 import { getToken } from 'next-auth/jwt';
+import { getServerSession } from 'next-auth/next';
+import { authOptions } from '../auth/[...nextauth]';
 
 export default async function handler(req,res){
   await dbConnect();
-  // Try normal session first
-  const session = await getSession({ req });
-  // Fallback: try reading JWT token directly (helps when getSession returns null in some server contexts)
+  // Use server session first, then fallback to reading the JWT directly.
+  let session = null;
+  try{
+    session = await getServerSession(req, res, authOptions);
+  }catch(e){
+    if(process.env.NODE_ENV !== 'production') console.warn('getServerSession failed', e && e.message);
+  }
   let token = null;
   try{ token = await getToken({ req, secret: process.env.NEXTAUTH_SECRET }); }catch(e){ /* ignore */ }
   const role = session?.user?.role || token?.role;

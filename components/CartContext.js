@@ -14,8 +14,8 @@ export function CartProvider({ children }){
     setHydrated(true);
   }, []);
   useEffect(()=>{
-    if(hydrated) localStorage.setItem('sd_cart', JSON.stringify(cart));
-  }, [cart, hydrated]);
+    if(hydrated) localStorage.setItem('sd_cart', JSON.stringify({ items: cart.items }));
+  }, [cart.items, hydrated]);
   const add = (product, qty=1)=> setCart(prev=>{
     const items = [...prev.items];
     const productId = product._id || product.sku || (product.title || '').replace(/\s+/g,'-').toLowerCase();

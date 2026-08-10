@@ -9,7 +9,7 @@ const fetcher = url => fetch(url, { credentials: 'include' }).then(r=>r.json());
 
 export default function AdminCoupons(){
   const { data, mutate } = useSWR('/api/coupons/admin', fetcher);
-  const [form, setForm] = useState({ code: '', type: 'percent', value: 10, public: false, maxUses: 1 });
+  const [form, setForm] = useState({ code: '', type: 'percent', value: 10, public: true, maxUses: 1 });
   const [busy, setBusy] = useState(false);
   const toast = useToast();
 
