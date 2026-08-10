@@ -13,7 +13,8 @@ export default async function handler(req, res) {
   if (req.method === "GET") {
     const session = await getSession({ req });
     if (req.query.admin === "true") {
-      // admin list
+      const role = session?.user?.role;
+      if (!role || role !== 'admin') return res.status(403).json({ error: 'admin required' });
       const orders = await Order.find({}).sort({ createdAt: -1 }).limit(200).lean();
       return res.status(200).json(orders);
     }

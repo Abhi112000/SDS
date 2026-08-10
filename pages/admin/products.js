@@ -45,22 +45,37 @@ function blobToDataURL(blob){
 export default function AdminProducts({ initial }){
   const [products, setProducts] = useState(initial || []);
   const [categories, setCategories] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
   const toast = useToast();
   const [updatingFeatured, setUpdatingFeatured] = useState({});
-  const [form, setForm] = useState({ title: '', price: '', sku: '', category: '', stock: 9999, description: '', images: [], featuredImage: '', originalPrice: '', onSale: false, salePrice: '', tags: [], saleHistory: [] });
+  const [form, setForm] = useState({ title: '', price: '', sku: '', category: '', stock: 9999, description: '', images: [], featuredImage: '', featured: false, originalPrice: '', onSale: false, salePrice: '', tags: [], saleHistory: [] });
   const [editingId, setEditingId] = useState(null);
   const [uploadProgress, setUploadProgress] = useState({});
 
   async function load(){
-  const res = await fetch('/api/products', { credentials: 'include' });
-    const data = await res.json();
-    // Support both array response and paginated { products } shape
-    const products = Array.isArray(data) ? data : (data && data.products) || [];
-    setProducts(products);
+    setLoading(true);
+    try{
+      const res = await fetch('/api/products', { credentials: 'include' });
+      const data = await res.json();
+      const products = Array.isArray(data) ? data : (data && data.products) || [];
+      setProducts(products);
+    }catch(e){
+      toast?.push?.({ message: 'Unable to load products: '+(e.message||'error'), type: 'error' });
+    }finally{
+      setLoading(false);
+    }
   }
 
   async function loadCategories(){
-    try{ const r = await fetch('/api/admin/categories'); const c = await r.json(); setCategories(c || []); }catch(e){ console.warn('load categories failed', e); }
+    try{
+      const r = await fetch('/api/admin/categories', { credentials: 'include' });
+      const c = await r.json();
+      setCategories(c || []);
+    }catch(e){
+      console.warn('load categories failed', e);
+      toast?.push?.({ message: 'Unable to load categories', type: 'error' });
+    }
   }
 
   function makeThree(src){
@@ -188,16 +203,25 @@ export default function AdminProducts({ initial }){
   
   async function handleCreate(e){
     e.preventDefault();
+    if(!form.title?.trim()){
+      toast?.push?.({ message: 'Product title is required', type: 'error' });
+      return;
+    }
+    if(!form.price || Number(form.price) <= 0){
+      toast?.push?.({ message: 'Valid product price is required', type: 'error' });
+      return;
+    }
+    setSaving(true);
     // ensure SKU: auto-generate as 3 letters of product name - 3 letters of category (CAPS)
     let finalSku = form.sku && form.sku.trim() ? form.sku.trim().toUpperCase() : '';
     if(!finalSku){
       finalSku = generateSku(form.title || '', form.category);
     }
-  const featuredUrl = form.featuredImage && typeof form.featuredImage === 'object' ? (form.featuredImage.url || '') : form.featuredImage;
-  const firstImg = (form.images && form.images[0]) ? (typeof form.images[0] === 'object' ? (form.images[0].url || '') : form.images[0]) : '';
-  // Build payload. For edits, only send fields that are intended to change to avoid overwriting images/originalPrice with empty values.
-  let payload;
-  if(editingId){
+    const featuredUrl = form.featuredImage && typeof form.featuredImage === 'object' ? (form.featuredImage.url || '') : form.featuredImage;
+    const firstImg = (form.images && form.images[0]) ? (typeof form.images[0] === 'object' ? (form.images[0].url || '') : form.images[0]) : '';
+    // Build payload. For edits, only send fields that are intended to change to avoid overwriting images/originalPrice with empty values.
+    let payload;
+    if(editingId){
     payload = {
       // always allow title/price/sku/category/stock/description updates
       title: form.title,
@@ -252,15 +276,21 @@ export default function AdminProducts({ initial }){
       const data = await res.json();
       if(!res.ok) { toast?.push?.({ message: data?.error || 'Failed to save product', type: 'error' }); return; }
       toast?.push?.({ message: 'Product updated', type: 'success' });
-      setForm({ title: '', price: '', sku: '', category: '', stock: 9999, description: '', images: [], featuredImage: '' });
+      setForm({ title: '', price: '', sku: '', category: '', stock: 9999, description: '', images: [], featuredImage: '', featured: false });
       setEditingId(null);
       load();
       return;
-    }catch(err){ toast?.push?.({ message: 'Save failed: ' + (err.message||''), type: 'error' }); return; }
+    }catch(err){
+      toast?.push?.({ message: 'Save failed: ' + (err.message||''), type: 'error' });
+      return;
+    }finally{
+      setSaving(false);
+    }
   }
 
   // Create new product flow (POST) — include all fields
   payload = { ...form, price: Number(form.price || 0), originalPrice: form.originalPrice ? Number(form.originalPrice) : undefined, salePrice: form.salePrice ? Number(form.salePrice) : undefined, onSale: !!form.onSale, stock: Number(form.stock || 0), sku: finalSku.toUpperCase(), category: form.category || '', image: featuredUrl || firstImg || '' };
+  payload.featured = !!form.featured;
   // if creating and onSale selected, add SALE! tag and initial saleHistory entry
   if(payload.onSale){
     payload.tags = Array.from(new Set([...(payload.tags||[]), 'SALE!']));
@@ -274,11 +304,15 @@ export default function AdminProducts({ initial }){
     const data = await res.json();
     if(!res.ok) { toast?.push?.({ message: data?.error || 'Failed to save product', type: 'error' }); return; }
     toast?.push?.({ message: 'Product created', type: 'success' });
-    setForm({ title: '', price: '', sku: '', category: '', stock: 9999, description: '', images: [], featuredImage: '' });
+    setForm({ title: '', price: '', sku: '', category: '', stock: 9999, description: '', images: [], featuredImage: '', featured: false });
     setEditingId(null);
     load();
-  }catch(err){ toast?.push?.({ message: 'Save failed: ' + (err.message||''), type: 'error' }); }
-    }
+  }catch(err){
+    toast?.push?.({ message: 'Save failed: ' + (err.message||''), type: 'error' });
+  }finally{
+    setSaving(false);
+  }
+  }
 
   return (
     <div className="p-6">
@@ -350,38 +384,51 @@ export default function AdminProducts({ initial }){
                   )}
                 </div>
 
-                <div className="flex items-center gap-3">
+                <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:gap-6">
                   <label className="flex items-center gap-2"><input type="checkbox" checked={form.onSale} onChange={e=>setForm(f=>({...f, onSale: e.target.checked}))} /> On Sale</label>
                   {form.onSale && (<input value={form.salePrice} onChange={e=>setForm(f=>({...f, salePrice: e.target.value}))} placeholder="Sale price" className="p-2 border rounded" />)}
+                  <label className="flex items-center gap-2"><input type="checkbox" checked={form.featured} onChange={e=>setForm(f=>({...f, featured: e.target.checked}))} /> Featured</label>
                 </div>
 
                 <div className="flex gap-2">
-                  <button className="px-4 py-2 bg-blue-600 text-white rounded" type="submit">{editingId ? 'Save changes' : 'Create product'}</button>
-                  {editingId && <button type="button" onClick={()=>{ setEditingId(null); setForm({ title: '', price: '', sku: '', category: '', stock: 9999, description: '', images: [], featuredImage: '' }); }} className="px-3 py-2 border rounded">Cancel</button>}
+                  <button disabled={saving} className="px-4 py-2 bg-blue-600 text-white rounded disabled:opacity-60" type="submit">{saving ? (editingId ? 'Saving...' : 'Creating...') : (editingId ? 'Save changes' : 'Create product')}</button>
+                  {editingId && <button type="button" onClick={()=>{ setEditingId(null); setForm({ title: '', price: '', sku: '', category: '', stock: 9999, description: '', images: [], featuredImage: '', featured: false }); }} className="px-3 py-2 border rounded">Cancel</button>}
                 </div>
               </form>
             </div>
 
             <div className="bg-white p-4 rounded shadow">
-              <div className="space-y-3">
-                {products.map(p => (
+              <div className="flex items-center justify-between mb-3">
+                <h3 className="font-semibold">Products</h3>
+                <div className="text-sm text-gray-500">{products.length} items</div>
+              </div>
+              {loading ? (
+                <div className="text-sm text-gray-500">Loading products…</div>
+              ) : products.length === 0 ? (
+                <div className="text-sm text-gray-500">No products found. Add one to start selling.</div>
+              ) : (
+                <div className="space-y-3">
+                  {products.map(p => (
                   <div key={p._id} className="p-3 rounded shadow flex items-center justify-between">
                     <div>
-                      <div className="font-medium">{p.title}</div>
+                      <div className="font-medium">{p.title} {p.featured ? <span className="ml-2 inline-flex items-center rounded bg-yellow-100 px-2 py-0.5 text-xs font-semibold text-yellow-800">Featured</span> : null}</div>
                       <div className="text-sm text-gray-600">
                         SKU: {p.sku || '—'} • Price: ₹{Number(p.price||0).toFixed(2)} • Category: {(() => {
                           const cat = categories.find(c => String(c._id || c.id) === String(p.category) || (c.name || c.title || '') === String(p.category));
                           return cat ? (cat.name || cat.title || String(p.category)) : (p.category || '—');
                         })()}
                       </div>
+                      <div className="text-xs text-slate-500 mt-1">Stock: {p.stock || 0} • {p.onSale ? `Sale ₹${Number(p.salePrice||0).toFixed(2)}` : 'Regular price'}</div>
                     </div>
                     <div className="flex items-center gap-2">
-                      <button onClick={()=>{ setEditingId(p._id); setForm({ ...p, price: p.price, originalPrice: p.originalPrice, salePrice: p.salePrice, sku: (p.sku||'').toUpperCase(), category: p.category || '', _prev: p }); window.scrollTo({ top: 0, behavior: 'smooth' }); }} className="px-2 py-1 border rounded">Edit</button>
-                      <button onClick={async ()=>{ if(!confirm('Delete this product?')) return; await fetch('/api/products?id='+p._id, { method: 'DELETE', credentials: 'include' }); load(); }} className="px-2 py-1 border rounded text-red-600">Delete</button>
+                      <button onClick={()=>{ setEditingId(p._id); setForm({ ...p, price: p.price, originalPrice: p.originalPrice, salePrice: p.salePrice, sku: (p.sku||'').toUpperCase(), category: p.category || '', featured: !!p.featured, _prev: p }); window.scrollTo({ top: 0, behavior: 'smooth' }); }} className="px-2 py-1 border rounded">Edit</button>
+                      <button onClick={async ()=>{ if(!confirm('Delete this product?')) return; const r = await fetch('/api/products?id='+p._id, { method: 'DELETE', credentials: 'include' }); if(!r.ok){ toast?.push?.({ message: 'Delete failed', type: 'error' }); return; } load(); }} className="px-2 py-1 border rounded text-red-600">Delete</button>
+                      <button onClick={()=>handleToggleFeatured(p._id, !p.featured)} disabled={!!updatingFeatured[p._id]} className="px-2 py-1 border rounded text-sm">{p.featured ? 'Unfeature' : 'Feature'}</button>
                     </div>
                   </div>
                 ))}
               </div>
+            )}
             </div>
           </div>
         </main>

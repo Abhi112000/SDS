@@ -39,6 +39,7 @@ export default function Admin({ dbError = false, errorMessage = '' }){
   const { data: invoices, mutate: mutateInvoices } = useSWR('/api/admin/invoices', fetcher);
   const { data: invoiceSettings, mutate: mutateInvoiceSettings } = useSWR('/api/admin/invoice-settings', fetcher);
   const [selectedInvoice, setSelectedInvoice] = useState(null);
+  const [expandedOrders, setExpandedOrders] = useState({});
   const [settingsDraft, setSettingsDraft] = useState(null);
   const [settingsBusy, setSettingsBusy] = useState(false);
 
@@ -74,15 +75,13 @@ export default function Admin({ dbError = false, errorMessage = '' }){
   const [imagePreview, setImagePreview] = useState('');
   const [stock, setStock] = useState('');
   const [creating, setCreating] = useState(false);
-  const [createMsg, setCreateMsg] = useState('');
 
   // User action state
   const [userBusy, setUserBusy] = useState({});
-  const [userMsg, setUserMsg] = useState({});
 
   const handleCreateProduct = useCallback(async () => {
-    if(!title || !price) { setCreateMsg('Title and price required'); return; }
-    setCreating(true); setCreateMsg('');
+    if(!title || !price) { toast?.push?.({ message: 'Title and price required', type: 'error' }); return; }
+    setCreating(true);
     try{
       // build images array: prefer uploaded imagePreview/url; support comma list in imagesInput as fallback
       const images = imagePreview ? [imagePreview] : (imagesInput ? imagesInput.split(',').map(i=>i.trim()).filter(Boolean) : (image ? [image] : []));
@@ -97,11 +96,10 @@ export default function Admin({ dbError = false, errorMessage = '' }){
       const data = await res.json();
       if(!res.ok) throw new Error(data?.error || 'Create failed');
       toast?.push?.({ title: 'Product saved', message: 'Product has been created successfully.', type: 'success' });
-      setCreateMsg('Created');
       setTitle(''); setPrice(''); setCategory(''); setSku(''); setFeatured(false); setDescription(''); setImage(''); setImagesInput(''); setStock('');
       setImagePreview(''); setUploadProgress({});
       mutate('/api/products');
-    }catch(e){ setCreateMsg(e.message || 'Error'); }
+    }catch(e){ toast?.push?.({ message: e.message || 'Error creating product', type: 'error' }); }
     setCreating(false);
   },[title,price,category,sku,featured]);
 
@@ -126,14 +124,13 @@ export default function Admin({ dbError = false, errorMessage = '' }){
 
   const updateUser = useCallback(async (id, patch) => {
     setUserBusy(prev=>({ ...prev, [id]: true }));
-    setUserMsg(prev=>({ ...prev, [id]: '' }));
     try{
       const res = await fetch('/api/admin/users', { method: 'PUT', credentials: 'include', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id, ...patch }) });
       const body = await res.json();
       if(!res.ok) throw new Error(body?.error || 'Update failed');
-      setUserMsg(prev=>({ ...prev, [id]: 'Saved' }));
+      toast?.push?.({ message: 'User saved', type: 'success' });
       mutate('/api/admin/users');
-    }catch(e){ setUserMsg(prev=>({ ...prev, [id]: e.message || 'Error' })); }
+    }catch(e){ toast?.push?.({ message: e.message || 'Error saving user', type: 'error' }); }
     setUserBusy(prev=>({ ...prev, [id]: false }));
   },[]);
 
@@ -148,8 +145,9 @@ export default function Admin({ dbError = false, errorMessage = '' }){
       const res = await fetch(`/api/admin/users?id=${id}`, { method: 'DELETE', credentials: 'include' });
       const body = await res.json();
       if(!res.ok) throw new Error(body?.error || 'Delete failed');
+      toast?.push?.({ message: 'User deleted', type: 'success' });
       mutate('/api/admin/users');
-    }catch(e){ setUserMsg(prev=>({ ...prev, [id]: e.message || 'Error' })); }
+    }catch(e){ toast?.push?.({ message: e.message || 'Error deleting user', type: 'error' }); }
     setUserBusy(prev=>({ ...prev, [id]: false }));
   },[]);
 
@@ -364,13 +362,10 @@ export default function Admin({ dbError = false, errorMessage = '' }){
                 <div className="flex items-center justify-between">
                   <div>{o._id} — ₹{o.subtotal} — {o.status}</div>
                   <div>
-                    <button onClick={() => {
-                      const el = document.getElementById('order-'+o._id);
-                      if(el) el.style.display = el.style.display === 'none' ? 'block' : 'none';
-                    }} className="text-sm px-2 py-1 bg-gray-100 rounded">Details</button>
+                    <button onClick={() => setExpandedOrders(prev => ({ ...prev, [o._id]: !prev[o._id] }))} className="text-sm px-2 py-1 bg-gray-100 rounded">Details</button>
                   </div>
                 </div>
-                <div id={'order-'+o._id} style={{ display: 'none' }} className="mt-2 text-sm text-gray-700">
+                <div className={`${expandedOrders[o._id] ? 'block' : 'hidden'} mt-2 text-sm text-gray-700`}>
                   <div><strong>Name:</strong> {o.name}</div>
                   <div><strong>Phone:</strong> {o.phone}</div>
                   <div><strong>Email:</strong> {o.email}</div>
@@ -721,7 +716,6 @@ export default function Admin({ dbError = false, errorMessage = '' }){
                     <div className="flex items-center gap-2">
                       <label className="flex items-center gap-1"><input type="checkbox" checked={!!u.disabled} onChange={e=>updateUser(u._id, { disabled: e.target.checked })} /> Disabled</label>
                       <button disabled={!!userBusy[u._id]} onClick={()=>deleteUser(u._id)} className="text-sm text-red-600">Delete</button>
-                      <span className="text-xs text-gray-500">{userMsg[u._id]}</span>
                     </div>
                   </td>
                 </tr>

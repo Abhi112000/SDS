@@ -18,6 +18,8 @@ export default function Shop({ products = [], categories = [], q = '', category 
     return category ? [category] : [];
   });
   const [showSuggestions, setShowSuggestions] = useState(false);
+  const [showCategoryDropdown, setShowCategoryDropdown] = useState(false);
+  const categoryDropdownRef = useRef(null);
 
   const suggestionItems = useMemo(() => {
     const term = (search || '').trim().toLowerCase();
@@ -58,6 +60,16 @@ export default function Shop({ products = [], categories = [], q = '', category 
       setPage(pageCount);
     }
   }, [page, pageCount]);
+
+  useEffect(() => {
+    function handleClick(event) {
+      if (categoryDropdownRef.current && !categoryDropdownRef.current.contains(event.target)) {
+        setShowCategoryDropdown(false);
+      }
+    }
+    window.addEventListener('mousedown', handleClick);
+    return () => window.removeEventListener('mousedown', handleClick);
+  }, []);
 
   function submitFilter(e){
     e && e.preventDefault();
@@ -105,7 +117,7 @@ export default function Shop({ products = [], categories = [], q = '', category 
             <div className="relative flex-1 min-w-[210px]">
               <input id="product-search" placeholder="Search products" value={search} onChange={(e)=>{ setSearch(e.target.value); setPage(1); setShowSuggestions(true); }} onFocus={()=>setShowSuggestions(true)} onBlur={()=>setTimeout(()=>setShowSuggestions(false), 120)} className="form-field w-full" />
               {showSuggestions && suggestionItems.length > 0 && (
-                <div className="absolute z-30 left-0 right-0 top-full mt-1 bg-white border rounded shadow-xl max-h-80 overflow-auto">
+                <div className="absolute z-30 left-0 right-0 top-full mt-1 bg-white border rounded shadow-xl max-h-72 overflow-auto">
                   {suggestionItems.map((item) => (
                     <button key={item._id} type="button" onMouseDown={(e)=>e.preventDefault()} onClick={() => { setSearch(item.title || item.name || ''); setShowSuggestions(false); setPage(1); }} className="w-full text-left px-4 py-2 hover:bg-slate-50 border-b last:border-b-0">
                       <div className="font-medium text-sm text-slate-800">{item.title || item.name}</div>
@@ -118,28 +130,40 @@ export default function Shop({ products = [], categories = [], q = '', category 
             <button className="px-4 py-3 btn-primary rounded-lg min-w-[130px]">Search</button>
           </div>
 
-          <div className="mt-2">
+          <div className="mt-2" ref={categoryDropdownRef}>
             <div className="flex items-center justify-between gap-3">
               <div className="flex items-center gap-2">
                 <span className="inline-flex h-2.5 w-2.5 rounded-full bg-primary"></span>
                 <span className="text-xs font-black uppercase tracking-[0.2em] text-slate-500">Shop by collection</span>
               </div>
-              {selectedCats.length > 0 && (
-                <button type="button" onClick={clearCategories} className="text-xs font-bold text-primary hover:underline">
-                  Clear all
+              <div className="flex items-center gap-2">
+                <button type="button" onClick={() => setShowCategoryDropdown((s) => !s)} className="inline-flex items-center justify-between gap-2 rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-700 shadow-sm hover:border-primary hover:text-primary">
+                  <span>{selectedCats.length ? `${selectedCats.length} selected` : 'All categories'}</span>
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden>
+                    <path d="M6 9l6 6 6-6" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+                  </svg>
                 </button>
-              )}
+                {selectedCats.length > 0 && (
+                  <button type="button" onClick={clearCategories} className="text-xs font-bold text-primary hover:underline">
+                    Clear all
+                  </button>
+                )}
+              </div>
             </div>
 
-            <div className="mt-3 flex flex-wrap items-center gap-2">
-              <button type="button" aria-pressed={selectedCats.length === 0} onClick={clearCategories} className={`category-chip ${selectedCats.length === 0 ? 'is-selected' : ''}`}>All products</button>
-              {categories.map((c) => {
-                const catName = c.name || c.title || '';
-                const checked = selectedCats.includes(catName);
-                return (
-                  <button key={c._id || c.id} type="button" aria-pressed={checked} onClick={() => toggleCategory(catName)} className={`category-chip ${checked ? 'is-selected' : ''}`}>{catName}</button>
-                );
-              })}
+            <div className="relative mt-3">
+              <div className={`absolute left-0 right-0 z-20 overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-xl transition-all duration-200 ${showCategoryDropdown ? 'block' : 'hidden'}`}>
+                <div className="grid gap-2 p-3 sm:grid-cols-2 lg:grid-cols-3">
+                  <button type="button" aria-pressed={selectedCats.length === 0} onClick={clearCategories} className={`category-chip ${selectedCats.length === 0 ? 'is-selected' : ''}`}>All products</button>
+                  {categories.map((c) => {
+                    const catName = c.name || c.title || '';
+                    const checked = selectedCats.includes(catName);
+                    return (
+                      <button key={c._id || c.id} type="button" aria-pressed={checked} onClick={() => toggleCategory(catName)} className={`category-chip ${checked ? 'is-selected' : ''}`}>{catName}</button>
+                    );
+                  })}
+                </div>
+              </div>
             </div>
 
             {selectedCats.length > 0 && (
@@ -157,7 +181,7 @@ export default function Shop({ products = [], categories = [], q = '', category 
         </form>
       </section>
 
-      <div ref={gridRef} className="grid sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
+      <div ref={gridRef} className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
         {pageProducts.map((product) => (
           <div key={product._id}>
             <ProductCard product={product} />

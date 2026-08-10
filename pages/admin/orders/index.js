@@ -1,23 +1,37 @@
 import { getSession } from 'next-auth/react';
 import AdminSidebar from '@/components/AdminSidebar';
 import { useEffect, useState } from 'react';
+import { useToast } from '@/components/Toast';
 
 export default function AdminOrders(){
   const [orders, setOrders] = useState([]);
   const [guestOrders, setGuestOrders] = useState([]);
   const [loading, setLoading] = useState(true);
+  const toast = useToast();
 
   async function load(){
     try{
       const r = await fetch('/api/orders?admin=true', { credentials: 'include' });
       const j = await r.json();
+      if(!r.ok){
+        toast?.push?.({ message: 'Unable to load orders', type: 'error' });
+      }
       setOrders(Array.isArray(j) ? j : (j && j.orders) || []);
       try{
         const g = await fetch('/api/admin/guest-orders', { credentials: 'include' });
         const gj = await g.json();
+        if(!g.ok){
+          toast?.push?.({ message: 'Unable to load guest orders', type: 'error' });
+        }
         setGuestOrders(Array.isArray(gj) ? gj : (gj && gj.orders) || []);
-      }catch(ge){ console.warn('guest orders load failed', ge); }
-    }catch(e){ console.error('load orders failed', e); }
+      }catch(ge){
+        console.warn('guest orders load failed', ge);
+        toast?.push?.({ message: 'Unable to load guest orders', type: 'error' });
+      }
+    }catch(e){
+      console.error('load orders failed', e);
+      toast?.push?.({ message: 'Unable to load orders', type: 'error' });
+    }
     setLoading(false);
   }
 

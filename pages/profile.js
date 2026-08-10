@@ -15,16 +15,33 @@ export default function Profile({ user }) {
 
   const [loading, setLoading] = useState(false);
   const [editing, setEditing] = useState(false);
+  const [whatsappError, setWhatsappError] = useState('');
   const toast = useToast();
+
+  const normalizePhone = value => String(value || '').replace(/[^0-9+]/g, '');
+  const isValidWhatsApp = value => {
+    const normalized = normalizePhone(value).replace(/^\+/, '');
+    return /^[0-9]{8,15}$/.test(normalized);
+  };
 
   const save = async () => {
     try {
       setLoading(true);
+      const normalizedForm = {
+        ...form,
+        phone: normalizePhone(form.phone),
+        whatsapp: normalizePhone(form.whatsapp),
+      };
+      if (normalizedForm.whatsapp && !isValidWhatsApp(normalizedForm.whatsapp)) {
+        setWhatsappError('Enter a valid WhatsApp number with 8–15 digits, optional +.');
+        setLoading(false);
+        return;
+      }
       const res = await fetch("/api/profile", {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         credentials: 'include',
-        body: JSON.stringify(form),
+        body: JSON.stringify(normalizedForm),
       });
 
       if (!res.ok) throw new Error("Failed to update profile");
@@ -75,12 +92,17 @@ export default function Profile({ user }) {
 
         <label className="block mb-2 font-medium">WhatsApp Number</label>
         <input
-          className="w-full p-2 border mb-4 rounded"
+          className={`w-full p-2 border mb-1 rounded ${whatsappError ? 'border-red-500' : ''}`}
           value={form.whatsapp}
           disabled={!editing}
-          onChange={(e) => setForm({ ...form, whatsapp: e.target.value })}
+          onChange={(e) => {
+            const value = e.target.value.replace(/[^0-9+]/g, '');
+            setForm({ ...form, whatsapp: value });
+            if (whatsappError && isValidWhatsApp(value)) setWhatsappError('');
+          }}
           placeholder="Your WhatsApp number"
         />
+        {whatsappError && <div className="text-red-600 text-sm mb-4">{whatsappError}</div>}
 
         <label className="block mb-2 font-medium">Home Address</label>
         <input

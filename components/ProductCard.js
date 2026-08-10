@@ -26,10 +26,11 @@ export default function ProductCard({ product }) {
   const isOnSale = !!product.onSale || (!!product.tags && product.tags.includes && product.tags.includes('SALE!'));
   const id = product._id || product.sku || title.replace(/\s+/g, '-').toLowerCase();
 
-  const { add } = useContext(CartContext);
+  const { add, remove, cart } = useContext(CartContext);
   const router = useRouter();
 
   const [justAdded, setJustAdded] = useState(false);
+  const inCart = (cart?.items || []).some((item) => item.productId === id);
 
   const effectivePrice = (isOnSale && salePrice) ? salePrice : price;
   const percentOff = (isOnSale && salePrice && price && price > salePrice) ? Math.round(((price - salePrice) / price) * 100) : null;
@@ -78,15 +79,37 @@ export default function ProductCard({ product }) {
           </div>
         <div className="product-card-action-row">
           <button
-          onClick={(e) => {
-            e.preventDefault();
-            add({ _id: id, title, price: effectivePrice, image: img }, 1);
-            setJustAdded(true);
-            setTimeout(()=>setJustAdded(false), 2500);
-          }}
-          className="product-add-button"
-        >Add to Cart</button>
-        {justAdded && <div className="product-added-toast" aria-live="polite">Added to cart</div>}
+            type="button"
+            onClick={(e) => {
+              e.preventDefault();
+              add({ _id: id, title, price: effectivePrice, image: img }, 1);
+              setJustAdded(true);
+              setTimeout(() => setJustAdded(false), 2500);
+            }}
+            className="product-add-button"
+          >Add to Cart</button>
+
+          {(inCart || justAdded) && (
+            <div className="mt-2 flex items-center gap-1 cart-remove-row">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden>
+                <circle cx="12" cy="12" r="9" fill="#047857" opacity="0.13" />
+                <path d="M7.5 12.5l2.5 2.5 6-6" stroke="#047857" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" />
+              </svg>
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.preventDefault();
+                  remove(id);
+                }}
+                className="cart-remove-button"
+              >
+                <span className="cart-remove-cross">×</span>
+                Remove
+              </button>
+            </div>
+          )}
+
+          {justAdded && !inCart && <div className="product-added-toast" aria-live="polite">Added to cart</div>}
         </div>
       </div>
     </article>

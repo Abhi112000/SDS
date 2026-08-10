@@ -11,7 +11,9 @@ export default function Header(){
   const [showCartPreview, setShowCartPreview] = useState(false);
   const cartRef = useRef();
   const [mobileOpen, setMobileOpen] = useState(false);
+  const [showUserMenu, setShowUserMenu] = useState(false);
   const mobileMenuRef = useRef();
+  const userMenuRef = useRef();
   const [isNarrow, setIsNarrow] = useState(false); // true when viewport < 1200px
   const [unread, setUnread] = useState(0);
   const MENU_ID = 'main-navigation';
@@ -39,8 +41,12 @@ export default function Header(){
 
   // close cart preview when clicking outside
   useEffect(()=>{
-    function onDoc(e){ if(cartRef.current && !cartRef.current.contains(e.target)){ setShowCartPreview(false); } if(mobileOpen && mobileMenuRef.current && !mobileMenuRef.current.contains(e.target) && !e.target.closest('[data-mobile-toggle]')){ setMobileOpen(false); } }
-    function onKey(e){ if(e.key === 'Escape'){ setShowCartPreview(false); setMobileOpen(false); } }
+    function onDoc(e){
+      if(cartRef.current && !cartRef.current.contains(e.target)){ setShowCartPreview(false); }
+      if(userMenuRef.current && !userMenuRef.current.contains(e.target) && !e.target.closest('[data-user-menu-toggle]')){ setShowUserMenu(false); }
+      if(mobileOpen && mobileMenuRef.current && !mobileMenuRef.current.contains(e.target) && !e.target.closest('[data-mobile-toggle]')){ setMobileOpen(false); }
+    }
+    function onKey(e){ if(e.key === 'Escape'){ setShowCartPreview(false); setMobileOpen(false); setShowUserMenu(false); } }
     if(showCartPreview || mobileOpen){ document.addEventListener('click', onDoc); document.addEventListener('keydown', onKey); }
     return ()=>{ document.removeEventListener('click', onDoc); document.removeEventListener('keydown', onKey); };
   },[showCartPreview, mobileOpen]);
@@ -85,22 +91,62 @@ export default function Header(){
 
   return (
     <header className="sticky top-0 z-50 border-b border-white/50 bg-white/90 backdrop-blur-xl shadow-sm">
-      <div className="max-w-7xl mx-auto px-4 py-3 flex items-center justify-between relative">
-        <nav role="navigation" aria-label="Main navigation" className="flex items-center gap-3">
-          <Link href="/" className="flex items-center gap-3 group" aria-label="Go to homepage">
-            <span className="relative flex items-center justify-center h-12 w-12 rounded-full bg-gradient-to-br from-red-50 to-sky-50 border border-white shadow-sm">
-              <img src="/images/logo.jpeg" alt="Shree Durga Stationery logo" className="h-11 w-11 object-contain rounded-full" />
+      <div className="max-w-7xl mx-auto px-3 py-2 md:px-4 md:py-3 flex items-center justify-between relative">
+        <nav role="navigation" aria-label="Main navigation" className="flex items-center gap-2 md:gap-3">
+          <Link href="/" className="flex items-center gap-2 md:gap-3 group" aria-label="Go to homepage">
+            <span className="relative flex items-center justify-center h-10 w-10 md:h-12 md:w-12 rounded-full bg-gradient-to-br from-red-50 to-sky-50 border border-white shadow-sm">
+              <img src="/images/logo.jpeg" alt="Shree Durga Stationery logo" className="h-9 w-9 md:h-11 md:w-11 object-contain rounded-full" />
             </span>
             <div className="leading-none">
-              <div className="text-xl font-extrabold tracking-tight text-slate-900 group-hover:text-primary transition-colors">Shree Durga</div>
-              <span className="text-xs block font-semibold text-slate-500 mt-1 uppercase tracking-[0.17em]">Stationery</span>
+              <div className="text-lg md:text-xl font-extrabold tracking-tight text-slate-900 group-hover:text-primary transition-colors">Shree Durga</div>
+              <span className="text-[10px] md:text-xs block font-semibold text-slate-500 mt-1 uppercase tracking-[0.16em]">Stationery</span>
             </div>
           </Link>
         </nav>
 
-        <div className="flex items-center gap-4">
+        <div className="flex items-center gap-3 md:gap-4">
           {isNarrow ? (
             <>
+              <Link href="/cart" className="relative inline-flex items-center justify-center p-2 rounded-full text-slate-700 hover:bg-slate-100" aria-label="Open cart">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden>
+                  <path d="M6 6h15l-1.5 9h-13.5L6 6Z" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+                  <path d="M8 21a1 1 0 1 0 0-2 1 1 0 0 0 0 2Zm10 0a1 1 0 1 0 0-2 1 1 0 0 0 0 2Z" stroke="currentColor" strokeWidth="2"/>
+                </svg>
+                {cartCount ? <span className="absolute -right-1 -top-1 inline-flex items-center justify-center h-5 min-w-5 px-1.5 rounded-full bg-primary text-white text-[10px] font-bold">{cartCount}</span> : null}
+              </Link>
+
+              {session ? (
+                <div className="relative">
+                  <button
+                    data-user-menu-toggle
+                    onClick={() => setShowUserMenu((s) => !s)}
+                    className="inline-flex items-center justify-center p-2 rounded-full text-slate-700 hover:bg-slate-100"
+                    aria-label="Open profile menu"
+                    aria-expanded={showUserMenu}
+                  >
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden>
+                      <path d="M12 12a4 4 0 1 0 0-8 4 4 0 0 0 0 8Z" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+                      <path d="M4 21c0-4 4-7 8-7s8 3 8 7" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+                    </svg>
+                  </button>
+                  {showUserMenu && (
+                    <div ref={userMenuRef} className="absolute right-0 mt-2 w-40 rounded-xl border border-slate-200 bg-white shadow-lg ring-1 ring-black/5 z-50">
+                      <Link href="/profile" onClick={() => setShowUserMenu(false)} className="block px-3 py-2 text-sm text-slate-700 hover:bg-slate-50">Profile</Link>
+                      <button onClick={() => { setShowUserMenu(false); signOut(); }} className="w-full text-left px-3 py-2 text-sm text-slate-700 hover:bg-slate-50">Logout</button>
+                    </div>
+                  )}
+                </div>
+              ) : (
+                <Link href="/login" className="inline-flex items-center justify-center p-2 rounded-full text-slate-700 hover:bg-slate-100" aria-label="Login">
+                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden>
+                    <path d="M15 3h6v6" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+                    <path d="M10 14L21 3" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+                    <path d="M21 3l-6 6" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+                    <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+                  </svg>
+                </Link>
+              )}
+
               <button
                 ref={mobileToggleRef}
                 data-mobile-toggle

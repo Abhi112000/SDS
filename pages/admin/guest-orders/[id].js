@@ -4,6 +4,7 @@ import GuestOrder from '@/models/GuestOrder';
 import { useState } from 'react';
 import AdminSidebar from '@/components/AdminSidebar';
 import { useRouter } from 'next/router';
+import { useToast } from '@/components/Toast';
 
 export default function GuestOrderDetail({ initialOrder }){
   const [order] = useState(initialOrder || {});
@@ -13,12 +14,7 @@ export default function GuestOrderDetail({ initialOrder }){
   const [invoiceRecord, setInvoiceRecord] = useState(null);
   const [invoiceForm, setInvoiceForm] = useState({ status: 'unpaid', paidAmount: 0, balance: 0 });
   const [printing, setPrinting] = useState(false);
-  const [toast, setToast] = useState(null);
-
-  function showToast(message, type = 'success'){
-    setToast({ message, type });
-    setTimeout(()=> setToast(null), 3500);
-  }
+  const toast = useToast();
 
   return (
     <div className="p-6">
@@ -33,17 +29,26 @@ export default function GuestOrderDetail({ initialOrder }){
               setInvoiceLoading(true);
               try{
                 const res = await fetch('/api/admin/invoices', { credentials: 'include' });
-                const data = await res.json();
+                const data = await res.json().catch(() => ({}));
+                if(!res.ok){
+                  toast?.push?.({ message: 'Unable to load invoice data', type: 'error' });
+                }
                 const inv = (data.invoices||[]).find(i => i.orderId === order._id);
                 if(inv){
                   setInvoiceRecord(inv);
                   setInvoiceForm({ status: inv.status || 'unpaid', paidAmount: inv.paidAmount || 0, balance: inv.balance || (inv.total ? (inv.total - (inv.paidAmount||0)) : 0) });
-                }else{
+                } else {
                   const total = order.subtotal || 0;
                   setInvoiceRecord(null);
                   setInvoiceForm({ status: 'unpaid', paidAmount: 0, balance: total });
                 }
-              }catch(e){ console.error('load invoice failed', e); }
+              }catch(e){
+                console.error('load invoice failed', e);
+                toast?.push?.({ message: 'Unable to load invoice data', type: 'error' });
+                const total = order.subtotal || 0;
+                setInvoiceRecord(null);
+                setInvoiceForm({ status: 'unpaid', paidAmount: 0, balance: total });
+              }
               setInvoiceLoading(false);
             }} className="px-3 py-1 bg-yellow-600 text-white rounded">Update invoice status</button>
 
@@ -62,7 +67,13 @@ export default function GuestOrderDetail({ initialOrder }){
                   const invoiceId = `INV-${Date.now()}`;
                   const createRes = await fetch('/api/admin/invoices', { method: 'POST', credentials: 'include', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ invoiceId, type: 'guest', orderId: order._id, payload: order, subtotal: order.subtotal || 0, total: order.subtotal || 0 }) });
                   const created = await createRes.json().catch(()=>null);
+                  if(!createRes.ok){
+                    toast?.push?.({ message: 'Unable to create invoice', type: 'error' });
+                  }
                   invToUse = created && created.invoice ? created.invoice : null;
+                  if(!invToUse){
+                    toast?.push?.({ message: 'Unable to generate invoice for print', type: 'error' });
+                  }
                 }
 
                 const itemsHtml = (order.items || []).map(it => `<tr><td style="padding:8px;border:1px solid #ddd">${(it.title||'Item')}</td><td style="padding:8px;border:1px solid #ddd;text-align:center">${it.qty||1}</td><td style="padding:8px;border:1px solid #ddd;text-align:right">₹${(Number(it.price)||0).toFixed(2)}</td><td style="padding:8px;border:1px solid #ddd;text-align:right">₹${((Number(it.price)||0)*(Number(it.qty)||1)).toFixed(2)}</td></tr>`).join('');
@@ -170,20 +181,13 @@ export default function GuestOrderDetail({ initialOrder }){
     </html>`;
 
                 const w = window.open('about:blank','invoice');
-                if(!w){ showToast('Popup blocked. Allow popups to download invoice.', 'error'); setPrinting(false); return; }
+                if(!w){ toast?.push?.({ message: 'Popup blocked. Allow popups to download invoice.', type: 'error' }); setPrinting(false); return; }
                 w.document.write(invHtml);
                 w.document.close();
                 setTimeout(()=>{ try{ w.focus(); w.print(); }catch(e){} setPrinting(false); },350);
-              }catch(e){ console.error('print invoice failed', e); showToast('Unable to print invoice', 'error'); setPrinting(false); }
+              }catch(e){ console.error('print invoice failed', e); toast?.push?.({ message: 'Unable to print invoice', type: 'error' }); setPrinting(false); }
             }} className="px-3 py-1 bg-blue-600 text-white rounded">{printing ? 'Printing…' : 'Download Invoice (PDF)'}</button>
           </div>
-
-          {toast && (
-            <div className={`fixed bottom-6 right-6 z-50 max-w-sm ${toast.type === 'error' ? 'bg-red-600 text-white' : (toast.type === 'info' ? 'bg-blue-600 text-white' : 'bg-green-600 text-white')} px-4 py-3 rounded-lg shadow-lg`} role="status" aria-live="polite">
-              <div className="font-medium">{toast.type === 'error' ? 'Error' : (toast.type === 'info' ? 'Info' : 'Success')}</div>
-              <div className="text-sm mt-1">{toast.message}</div>
-            </div>
-          )}
 
           <h1 className="text-2xl font-bold mb-4">Guest Order {order._id}</h1>
 
@@ -230,8 +234,8 @@ export default function GuestOrderDetail({ initialOrder }){
                         try{
                           const total = Number((invoiceRecord && invoiceRecord.total) || (order.subtotal || 0) || 0);
                           const paid = Number(invoiceForm.paidAmount || 0);
-                          if(paid < 0){ showToast('Paid amount cannot be negative', 'error'); return; }
-                          if(paid > total){ showToast('Paid amount cannot exceed total payable', 'error'); return; }
+                          if(paid < 0){ toast?.push?.({ message: 'Paid amount cannot be negative', type: 'error' }); return; }
+                          if(paid > total){ toast?.push?.({ message: 'Paid amount cannot exceed total payable', type: 'error' }); return; }
 
                           let statusToSave = invoiceForm.status;
                           if(paid >= total) statusToSave = 'paid';
@@ -250,12 +254,12 @@ export default function GuestOrderDetail({ initialOrder }){
                           if(res && res.ok){
                             setShowInvoiceModal(false);
                             setInvoiceRecord(data.invoice || data.invoice);
-                            showToast('Invoice saved', 'success');
+                            toast?.push?.({ message: 'Invoice saved', type: 'success' });
                           } else {
                             console.error('invoice update failed', data);
-                            showToast('Failed to save invoice: '+ (data && data.error), 'error');
+                            toast?.push?.({ message: 'Failed to save invoice: '+ (data && data.error), type: 'error' });
                           }
-                        }catch(e){ console.error(e); showToast('Error saving invoice', 'error'); }
+                        }catch(e){ console.error(e); toast?.push?.({ message: 'Error saving invoice', type: 'error' }); }
                       }} className="px-3 py-1 bg-blue-600 text-white rounded">Save</button>
                     </div>
                   </div>

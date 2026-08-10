@@ -11,11 +11,12 @@ const fetcher = (url) => fetch(url).then(r => r.json());
 
 export default function MessagesPage({ userId }){
   const toast = useToast();
-  const { data: messages = [] } = useSWR('/api/messages?mine=1', fetcher, { refreshInterval: 5000 });
-  const [active, setActive] = useState(null);
-  const [replyLoading, setReplyLoading] = useState(false);
   const router = useRouter();
   const { orderId: orderIdQuery } = router.query || {};
+  const apiUrl = '/api/messages?mine=1' + (orderIdQuery ? '&orderId=' + orderIdQuery : '');
+  const { data: messages = [] } = useSWR(apiUrl, fetcher, { refreshInterval: 5000 });
+  const [active, setActive] = useState(null);
+  const [replyLoading, setReplyLoading] = useState(false);
   const [composeLoading, setComposeLoading] = useState(false);
   const [composeSubject, setComposeSubject] = useState('');
   const [composeText, setComposeText] = useState('');
@@ -26,21 +27,21 @@ export default function MessagesPage({ userId }){
       const ch = p.subscribe(`user-${userId}`);
       ch.bind('message-reply', (data)=>{
         // revalidate list
-        mutate('/api/messages?mine=1');
+        mutate(apiUrl);
         toast.push({ message: 'Support replied', type: 'success' });
       });
-      ch.bind('new-message', (data)=>{ mutate('/api/messages?mine=1'); toast.push({ message: 'New message from support', type: 'success' }); });
+      ch.bind('new-message', (data)=>{ mutate(apiUrl); toast.push({ message: 'New message from support', type: 'success' }); });
       return ()=>{ ch.unbind(); p.disconnect(); };
     }catch(e){ /* pusher not configured */ }
-  },[userId]);
+  },[userId, apiUrl]);
 
   async function replyTo(id, text){
     if(!text) return;
     setReplyLoading(true);
     try{
-      const r = await fetch('/api/messages/reply-user', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id, text }) });
+      const r = await fetch('/api/messages/reply-user', { method: 'POST', credentials: 'include', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id, text }) });
       if(!r.ok) throw new Error('send failed');
-      mutate('/api/messages?mine=1');
+      mutate(apiUrl);
       localStorage.removeItem(`msg_draft_${id}`);
       setActive(null);
     }catch(e){ toast.push({ message: 'Failed to send reply', type: 'error' }); }
@@ -52,9 +53,9 @@ export default function MessagesPage({ userId }){
     setComposeLoading(true);
     try{
       const payload = { subject: composeSubject || `Order: ${orderIdQuery}`, text: composeText, orderId: orderIdQuery };
-      const r = await fetch('/api/messages', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
+      const r = await fetch('/api/messages', { method: 'POST', credentials: 'include', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
       if(!r.ok) throw new Error('create failed');
-      mutate('/api/messages?mine=1');
+      mutate(apiUrl);
       setComposeText(''); setComposeSubject('');
       toast.push({ message: 'Message sent', type: 'success' });
       // optionally open the created thread in list after refresh

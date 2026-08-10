@@ -15,18 +15,38 @@ export default function AdminMessages(){
   const toast = useToast();
 
   async function markRead(id){
-    await fetch('/api/messages/read?id='+id, { method: 'POST' });
-    mutate();
+    if(!id) return;
+    try{
+      const res = await fetch('/api/messages/read?id='+id, { method: 'POST', credentials: 'include' });
+      if(!res.ok){
+        const err = await res.json().catch(()=>({ error: 'Unknown error' }));
+        toast?.push?.({ message: 'Unable to mark read: ' + (err.error || err.message || res.status), type: 'error' });
+      } else {
+        toast?.push?.({ message: 'Message marked read', type: 'success' });
+        mutate();
+      }
+    }catch(e){
+      toast?.push?.({ message: 'Unable to mark read: ' + (e.message || 'unknown'), type: 'error' });
+    }
   }
 
   async function replyTo(id, text){
     if(!text) return;
     setReplyLoading(l=>({ ...l, [id]: true }));
     try{
-  const r = await fetch('/api/messages/reply', { method: 'POST', credentials: 'include', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id, text }) });
-  if(!r.ok){ const err = await r.json().catch(()=>({ error: 'unknown' })); console.error('reply failed', r.status, err); toast?.push?.({ message: 'Reply failed: '+(err.error||err.message||r.status), type: 'error' }); }
-  else { mutate(); document.getElementById(`reply-${id}`).value = ''; }
-    }catch(e){ console.error(e); }
+      const r = await fetch('/api/messages/reply', { method: 'POST', credentials: 'include', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id, text }) });
+      if(!r.ok){
+        const err = await r.json().catch(()=>({ error: 'unknown' }));
+        console.error('reply failed', r.status, err);
+        toast?.push?.({ message: 'Reply failed: '+(err.error||err.message||r.status), type: 'error' });
+      } else {
+        toast?.push?.({ message: 'Reply sent', type: 'success' });
+        mutate();
+      }
+    }catch(e){
+      console.error(e);
+      toast?.push?.({ message: 'Reply failed: ' + (e.message || 'unknown'), type: 'error' });
+    }
     setReplyLoading(l=>({ ...l, [id]: false }));
   }
 
@@ -38,10 +58,14 @@ export default function AdminMessages(){
       <div className="grid md:grid-cols-4 gap-6">
         <AdminSidebar />
         <main className="md:col-span-3">
-          <h1 className="text-2xl font-bold mb-4">Messages</h1>
+          <div className="flex items-center justify-between mb-4">
+            <h1 className="text-2xl font-bold">Messages</h1>
+            <div className="text-sm text-gray-600">Total: {messages.length}</div>
+          </div>
           <div className="space-y-3">
+            {messages.length === 0 && <div className="text-sm text-gray-500">No messages found.</div>}
             {messages.map(m=> (
-          <div key={m._id} className={`card ${m.read? 'opacity-60':''}`}>
+          <div key={m._id} className={`card ${m.read? 'opacity-70' : 'border-l-4 border-blue-500'}`}>
             <div className="flex justify-between">
               <div>
           <div className="font-medium">{m.subject}{m.orderId ? <span className="ml-2 text-xs text-gray-500">(Order: {m.orderId})</span> : null}</div>

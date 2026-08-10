@@ -1,71 +1,75 @@
 import { getSession } from 'next-auth/react';
 import dbConnect from '@/lib/mongodb';
 import Order from '../../../models/Order';
-import Message from '../../../models/Message';
-import { useState, useEffect } from 'react';
-// local toast handled via showToast; do not import default Toast (use ToastProvider/useToast elsewhere)
+import { useState } from 'react';
 import { useRouter } from 'next/router';
-import ReplyBox from '@/components/ReplyBox';
+import { useToast } from '@/components/Toast';
 
-function NewMessageForm({ onSend }){
-  const [subject, setSubject] = useState('');
-  const [text, setText] = useState('');
-  const [busy, setBusy] = useState(false);
-  return (
-    <div>
-      <input placeholder="Subject (optional)" value={subject} onChange={e=>setSubject(e.target.value)} className="w-full p-2 border mb-2" />
-      <textarea value={text} onChange={e=>setText(e.target.value)} className="w-full p-2 border mb-2" rows={4} />
-      <div className="flex justify-end">
-        <button disabled={busy} onClick={async ()=>{ setBusy(true); await onSend(subject, text); setBusy(false); setSubject(''); setText(''); }} className="px-3 py-1 btn-primary">Send</button>
-      </div>
-    </div>
-  );
-}
-
-export default function AdminOrderDetail({ initialOrder, initialMessages }){
+export default function AdminOrderDetail({ initialOrder }){
   const router = useRouter();
   const [order, setOrder] = useState(initialOrder);
-  const [messages, setMessages] = useState(initialMessages || []);
+  const [orderStatus, setOrderStatus] = useState(initialOrder?.status || 'new');
+  const [statusSaving, setStatusSaving] = useState(false);
   const [showInvoiceModal, setShowInvoiceModal] = useState(false);
   const [invoiceLoading, setInvoiceLoading] = useState(false);
   const [invoiceRecord, setInvoiceRecord] = useState(null);
   const [invoiceForm, setInvoiceForm] = useState({ status: 'unpaid', paidAmount: 0, balance: 0 });
   const [printing, setPrinting] = useState(false);
-  const [toast, setToast] = useState(null); // { message, type }
+  const [sendingInvoice, setSendingInvoice] = useState(false);
+  const statusOptions = ['new', 'processing', 'shipped', 'delivered', 'cancelled'];
+  const toast = useToast();
 
-  function showToast(message, type = 'success'){
-    setToast({ message, type });
-    setTimeout(()=> setToast(null), 3500);
-  }
+  const formatDateTime = value => {
+    try {
+      return new Intl.DateTimeFormat('en-GB', {
+        day: '2-digit',
+        month: '2-digit',
+        year: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit',
+        hour12: false
+      }).format(new Date(value));
+    } catch (e) {
+      return String(value);
+    }
+  };
 
-  useEffect(()=>{ /* placeholder for any client-side refresh */ },[]);
+  const getCustomerWhatsappNumber = () => String(order.whatsapp || order.phone || '').replace(/\D/g, '');
 
-  async function loadMessages(){
-    try{
-      const res = await fetch('/api/messages', { credentials: 'include' });
-      const all = await res.json();
-      const list = Array.isArray(all) ? all.filter(m=> m.orderId === (order && order._id)) : [];
-      setMessages(list);
-    }catch(e){ console.warn('load messages failed', e); }
-  }
+  const buildOrderWhatsappSummary = (payload, intro) => {
+    const lines = [];
+    if (intro) {
+      lines.push(intro, '');
+    }
+    lines.push(`Order ID: ${payload._id}`);
+    lines.push(`Date: ${formatDateTime(payload.createdAt)}`);
+    lines.push(`Status: ${payload.status || orderStatus}`);
+    if (payload.name) lines.push(`Customer: ${payload.name}`);
+    if (payload.whatsapp || payload.phone) lines.push(`Contact: ${payload.whatsapp || payload.phone}`);
+    if (payload.address) lines.push(`Address: ${payload.address}`);
+    if (payload.locationUrl) lines.push(`Location URL: ${payload.locationUrl}`);
+    lines.push('', 'Items:');
+    (payload.items || []).forEach(item => {
+      lines.push(`• ${item.title} x ${item.qty || 1} @ ₹${item.price || 0} = ₹${((Number(item.qty) || 1) * (Number(item.price) || 0)).toFixed(2)}`);
+    });
+    lines.push('', `Subtotal: ₹${Number(payload.subtotal || 0).toFixed(2)}`);
+    lines.push(`Discount: ₹${Number(payload.coupon?.discountAmount || 0).toFixed(2)}`);
+    const totalValue = Number(payload.total ?? ((payload.subtotal || 0) - (payload.coupon?.discountAmount || 0)));
+    lines.push(`Total: ₹${totalValue.toFixed(2)}`);
+    return lines.join('\n');
+  };
 
-  async function replyTo(id, text){
-    if(!text) return;
-    try{
-      await fetch('/api/messages/reply', { method: 'POST', credentials: 'include', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id, text }) });
-      await loadMessages();
-    }catch(e){ console.error('reply failed', e); }
-  }
+  const openCustomerWhatsApp = (text) => {
+    const phone = getCustomerWhatsappNumber();
+    if (!phone) {
+      toast?.push?.({ message: 'Customer WhatsApp number is not available.', type: 'error' });
+      return;
+    }
+    const url = `https://wa.me/${phone}?text=${encodeURIComponent(text)}`;
+    window.open(url, '_blank', 'noopener,noreferrer');
+  };
 
-  async function createMessage(subject, text){
-    try{
-      if(!text) return;
-      await fetch('/api/messages', { method: 'POST', credentials: 'include', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ subject: subject || 'Admin message', text, orderId: order._id }) });
-      await loadMessages();
-    }catch(e){ console.error('create message failed', e); }
-  }
-
-  useEffect(()=>{ loadMessages(); },[]);
+  const getInvoicePrintUrl = invoiceId => `${window.location.origin}/api/admin/invoices/print?id=${encodeURIComponent(invoiceId)}&public=1`;
 
   return (
     <div className="p-6">
@@ -83,27 +87,33 @@ export default function AdminOrderDetail({ initialOrder, initialMessages }){
       </div>
 
       <div className="flex items-center gap-3 mt-4">
-        <button onClick={async ()=>{
-          // open modal and load invoice if exists
-          setShowInvoiceModal(true);
-          setInvoiceLoading(true);
-          try{
-            const res = await fetch('/api/admin/invoices', { credentials: 'include' });
-            const data = await res.json();
-            const inv = (data.invoices||[]).find(i => i.orderId === order._id);
-            if(inv){
-              setInvoiceRecord(inv);
-              setInvoiceForm({ status: inv.status || 'unpaid', paidAmount: inv.paidAmount || 0, balance: inv.balance || (inv.total ? (inv.total - (inv.paidAmount||0)) : 0) });
-            }else{
-              // default values based on order
-              const couponDisc = (order.coupon && order.coupon.discountAmount) || 0;
-              const total = (order.subtotal || 0) - couponDisc;
-              setInvoiceRecord(null);
-              setInvoiceForm({ status: 'unpaid', paidAmount: 0, balance: total });
+        <div className="flex items-center gap-2">
+          <label className="text-sm font-medium">Order status</label>
+          <select value={orderStatus} onChange={e => setOrderStatus(e.target.value)} className="p-2 border rounded">
+            {statusOptions.map(s => <option key={s} value={s}>{s.charAt(0).toUpperCase() + s.slice(1)}</option>)}
+          </select>
+          <button onClick={async ()=>{
+            if(orderStatus === order.status) return;
+            setStatusSaving(true);
+            try{
+              const res = await fetch(`/api/orders/${order._id}`, { method: 'PUT', credentials: 'include', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ status: orderStatus }) });
+              const data = await res.json();
+              if(!res.ok){
+                console.error('order status update failed', data);
+                toast?.push?.({ message: 'Failed to update order status: ' + (data?.error || data?.message || res.status), type: 'error' });
+              } else {
+                setOrder(data.order);
+                toast?.push?.({ message: 'Order status updated', type: 'success' });
+                const text = buildOrderWhatsappSummary(data.order, `Hello ${data.order.name || data.order.customerName || 'Customer'},\nYour order status has been updated to ${data.order.status}.\n\nOrder details:`);
+                openCustomerWhatsApp(text);
+              }
+            }catch(e){
+              console.error('status update error', e);
+              toast?.push?.({ message: 'Unable to update order status', type: 'error' });
             }
-          }catch(e){ console.error('load invoice failed', e); }
-          setInvoiceLoading(false);
-        }} className="px-3 py-1 bg-yellow-600 text-white rounded">Update invoice status</button>
+            setStatusSaving(false);
+          }} disabled={statusSaving || orderStatus === order.status} className="px-3 py-1 bg-green-600 text-white rounded disabled:opacity-60">{statusSaving ? 'Saving...' : 'Save status'}</button>
+        </div>
         <button onClick={async ()=>{
           // download / print invoice for this order. Ensure invoice exists or create a temporary one.
           setPrinting(true);
@@ -127,7 +137,7 @@ export default function AdminOrderDetail({ initialOrder, initialMessages }){
               invToUse = created && created.invoice ? created.invoice : null;
             }
 
-            // build invoice html (reuse structure from admin/index.js but include status stamp & paid/balance rows)
+            if(!invToUse){ throw new Error('Unable to build invoice'); }
             const invSettings = settingsBody || {};
             const itemsHtml = (order.items || []).map(it => `<tr><td style="padding:8px;border:1px solid #ddd">${(it.title||'Item')}</td><td style="padding:8px;border:1px solid #ddd;text-align:center">${it.qty||1}</td><td style="padding:8px;border:1px solid #ddd;text-align:right">₹${(Number(it.price)||0).toFixed(2)}</td><td style="padding:8px;border:1px solid #ddd;text-align:right">₹${((Number(it.price)||0)*(Number(it.qty)||1)).toFixed(2)}</td></tr>`).join('');
             const subtotal = Number(order.subtotal || 0).toFixed(2);
@@ -239,20 +249,40 @@ export default function AdminOrderDetail({ initialOrder, initialMessages }){
     </html>`;
 
             const w = window.open('about:blank','invoice');
-            if(!w){ showToast('Popup blocked. Allow popups to download invoice.', 'error'); setPrinting(false); return; }
+            if(!w){ toast?.push?.({ message: 'Popup blocked. Allow popups to download invoice.', type: 'error' }); setPrinting(false); return; }
             w.document.write(invHtml);
             w.document.close();
             setTimeout(()=>{ try{ w.focus(); w.print(); }catch(e){} setPrinting(false); },350);
-          }catch(e){ console.error('print invoice failed', e); showToast('Unable to print invoice', 'error'); setPrinting(false); }
+          }catch(e){ console.error('print invoice failed', e); toast?.push?.({ message: 'Unable to print invoice', type: 'error' }); setPrinting(false); }
         }} className="px-3 py-1 bg-blue-600 text-white rounded">{printing ? 'Printing…' : 'Download Invoice (PDF)'}</button>
+        <button onClick={async ()=>{
+          setSendingInvoice(true);
+          try{
+            const invRes = await fetch('/api/admin/invoices', { credentials: 'include' });
+            const invBody = await invRes.json().catch(()=>({}));
+            const existing = (invBody.invoices || []).find(i => i.orderId === order._id) || invoiceRecord;
+            let invToUse = existing;
+            if(!invToUse){
+              const couponDisc = (order.coupon && order.coupon.discountAmount) || 0;
+              const total = (order.subtotal || 0) - couponDisc;
+              const invoiceId = `INV-${Date.now()}`;
+              const createRes = await fetch('/api/admin/invoices', { method: 'POST', credentials: 'include', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ invoiceId, type: 'order', orderId: order._id, payload: order, subtotal: order.subtotal || 0, discount: couponDisc, total }) });
+              const created = await createRes.json().catch(()=>null);
+              invToUse = created && created.invoice ? created.invoice : null;
+            }
+            if(!invToUse) throw new Error('Unable to build invoice');
+            const invoiceId = invToUse.invoiceId || invToUse._id;
+            const invoiceLink = getInvoicePrintUrl(invoiceId);
+            const text = buildOrderWhatsappSummary(order, `Hello ${order.name || 'Customer'},\nYour invoice for order ${order._id} is ready.\n\nInvoice PDF: ${invoiceLink}\n\nOrder details:`);
+            openCustomerWhatsApp(text);
+            toast?.push?.({ message: 'Invoice message opened in WhatsApp', type: 'success' });
+          }catch(e){
+            console.error('send invoice error', e);
+            toast?.push?.({ message: 'Unable to send invoice: ' + (e.message || 'unknown'), type: 'error' });
+          }
+          setSendingInvoice(false);
+        }} disabled={sendingInvoice} className="px-3 py-1 bg-indigo-600 text-white rounded disabled:opacity-60 ml-2">{sendingInvoice ? 'Sending…' : 'Send invoice on WhatsApp'}</button>
       </div>
-
-      {toast && (
-        <div className={`fixed bottom-6 right-6 z-50 max-w-sm ${toast.type === 'error' ? 'bg-red-600 text-white' : (toast.type === 'info' ? 'bg-blue-600 text-white' : 'bg-green-600 text-white')} px-4 py-3 rounded-lg shadow-lg`} role="status" aria-live="polite">
-          <div className="font-medium">{toast.type === 'error' ? 'Error' : (toast.type === 'info' ? 'Info' : 'Success')}</div>
-          <div className="text-sm mt-1">{toast.message}</div>
-        </div>
-      )}
 
       {showInvoiceModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
@@ -287,8 +317,8 @@ export default function AdminOrderDetail({ initialOrder, initialMessages }){
                       const couponDisc = (order.coupon && order.coupon.discountAmount) || 0;
                       const total = Number((invoiceRecord && invoiceRecord.total) || ((order.subtotal || 0) - couponDisc) || 0);
                       const paid = Number(invoiceForm.paidAmount || 0);
-                      if(paid < 0){ showToast('Paid amount cannot be negative', 'error'); return; }
-                      if(paid > total){ showToast('Paid amount cannot exceed total payable', 'error'); return; }
+                      if(paid < 0){ toast?.push?.({ message: 'Paid amount cannot be negative', type: 'error' }); return; }
+                      if(paid > total){ toast?.push?.({ message: 'Paid amount cannot exceed total payable', type: 'error' }); return; }
 
                       let statusToSave = invoiceForm.status;
                       if(paid >= total) statusToSave = 'paid';
@@ -307,12 +337,12 @@ export default function AdminOrderDetail({ initialOrder, initialMessages }){
                       if(res && res.ok){
                         setShowInvoiceModal(false);
                         setInvoiceRecord(data.invoice || data.invoice);
-                        showToast('Invoice saved', 'success');
+                        toast?.push?.({ message: 'Invoice saved', type: 'success' });
                       } else {
                         console.error('invoice update failed', data);
-                        showToast('Failed to save invoice: '+ (data && data.error), 'error');
+                        toast?.push?.({ message: 'Failed to save invoice: '+ (data && data.error), type: 'error' });
                       }
-                    }catch(e){ console.error(e); showToast('Error saving invoice', 'error'); }
+                    }catch(e){ console.error(e); toast?.push?.({ message: 'Error saving invoice', type: 'error' }); }
                   }} className="px-3 py-1 bg-blue-600 text-white rounded">Save</button>
                 </div>
               </div>
@@ -321,24 +351,11 @@ export default function AdminOrderDetail({ initialOrder, initialMessages }){
         </div>
       )}
 
-          <h2 className="text-xl font-semibold mb-2">Related messages</h2>
-          <div className="space-y-3">
-            {messages.map(m=> (
-              <div key={m._id || m.id} className="card bg-white p-3 rounded shadow">
-                <div className="font-semibold">{m.subject || 'Message'}</div>
-                <div className="text-sm text-gray-600">From: {m.fromName || m.from || 'Unknown'} • {new Date(m.createdAt || m.updatedAt || Date.now()).toISOString().replace('T',' ').slice(0,19)}</div>
-                <div className="mt-2 text-sm">{m.text}</div>
-                <div className="mt-3">
-                  <ReplyBox messageId={m._id} onSend={(txt)=>{ replyTo(m._id, txt); }} />
-                </div>
-              </div>
-            ))}
-          </div>
-
-          <div className="mt-6 bg-white p-4 rounded shadow">
-            <h3 className="font-semibold mb-2">Send new message (to user)</h3>
-            <NewMessageForm onSend={(subject, text)=> createMessage(subject, text)} />
-          </div>
+      <div className="mt-6">
+        <div className="bg-white p-4 rounded shadow">
+          <p className="text-sm text-gray-600">Customer communication is handled via WhatsApp. Use the status update and invoice buttons to notify the customer with a complete order summary.</p>
+        </div>
+      </div>
     </div>
   );
 }
@@ -349,6 +366,5 @@ export async function getServerSideProps(ctx){
   const { id } = ctx.params;
   await dbConnect();
   const order = await Order.findById(id).lean();
-  const messages = await Message.find({ orderId: id }).sort({ createdAt:-1 }).lean();
-  return { props: { initialOrder: JSON.parse(JSON.stringify(order || {})), initialMessages: JSON.parse(JSON.stringify(messages || [])) } };
+  return { props: { initialOrder: JSON.parse(JSON.stringify(order || {})) } };
 }
