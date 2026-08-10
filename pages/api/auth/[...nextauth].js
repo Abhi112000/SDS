@@ -4,17 +4,17 @@ import dbConnect from "@/lib/dbConnect";
 import User from "@/models/User";
 import bcrypt from "bcryptjs";
 
-const DEFAULT_NEXTAUTH_URL = 'https://sds-qpcz.vercel.app';
-const NEXTAUTH_URL_VALUE = process.env.NEXTAUTH_URL || (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : '') || DEFAULT_NEXTAUTH_URL;
-if (!process.env.NEXTAUTH_URL || !String(process.env.NEXTAUTH_URL).includes('sds-qpcz.vercel.app')) {
-  process.env.NEXTAUTH_URL = DEFAULT_NEXTAUTH_URL;
-}
+const localUrl = 'http://localhost:3000';
+const resolvedVercelUrl = process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : '';
+const resolvedNextAuthUrl = process.env.NEXTAUTH_URL || resolvedVercelUrl || localUrl;
+const NEXTAUTH_URL_VALUE = String(resolvedNextAuthUrl).replace(/\/$/, '');
+process.env.NEXTAUTH_URL = NEXTAUTH_URL_VALUE;
 
 console.log('[next-auth] runtime config:', {
   NEXTAUTH_URL: process.env.NEXTAUTH_URL || null,
   VERCEL_URL: process.env.VERCEL_URL || null,
   NEXTAUTH_SECRET_SET: !!process.env.NEXTAUTH_SECRET,
-  USE_SECURE_COOKIES: process.env.NODE_ENV === 'production' && String(NEXTAUTH_URL_VALUE).startsWith('https://'),
+  USE_SECURE_COOKIES: process.env.NODE_ENV === 'production' && NEXTAUTH_URL_VALUE.startsWith('https://'),
 });
 
 export const authOptions = {
