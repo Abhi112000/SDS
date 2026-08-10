@@ -4,6 +4,8 @@ import dbConnect from "@/lib/dbConnect";
 import User from "@/models/User";
 import bcrypt from "bcryptjs";
 
+const NEXTAUTH_URL_VALUE = process.env.NEXTAUTH_URL || (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : '');
+
 export const authOptions = {
   providers: [
     // --- Manual Login (email/password)
@@ -49,6 +51,10 @@ export const authOptions = {
   session: {
     strategy: "jwt",
   },
+  useSecureCookies: process.env.NODE_ENV === 'production'
+    ? String(NEXTAUTH_URL_VALUE).startsWith('https://')
+    : false,
+  trustHost: true,
   secret: process.env.NEXTAUTH_SECRET || 'dev-secret-change-me',
   // enable verbose debug logs in development to help diagnose client/server session fetch issues
   debug: process.env.NODE_ENV !== 'production',
