@@ -8,17 +8,12 @@ const localUrl = 'http://localhost:3000';
 const fallbackProdUrl = 'https://sdstationery.vercel.app';
 const resolvedVercelUrl = process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : '';
 let resolvedNextAuthUrl = process.env.NEXTAUTH_URL || resolvedVercelUrl || '';
-if (process.env.NEXTAUTH_URL && process.env.NEXTAUTH_URL.includes('sds-qpcz.vercel.app') && resolvedVercelUrl) {
-  resolvedNextAuthUrl = resolvedVercelUrl;
-}
 if (!resolvedNextAuthUrl) {
   resolvedNextAuthUrl = process.env.NODE_ENV === 'production' ? fallbackProdUrl : localUrl;
 }
 const NEXTAUTH_URL_VALUE = String(resolvedNextAuthUrl).replace(/\/$/, '');
 process.env.NEXTAUTH_URL = NEXTAUTH_URL_VALUE;
-if (!process.env.NEXTAUTH_URL_INTERNAL) {
-  process.env.NEXTAUTH_URL_INTERNAL = process.env.NEXTAUTH_URL;
-}
+process.env.NEXTAUTH_URL_INTERNAL = process.env.NEXTAUTH_URL;
 
 console.log('[next-auth] runtime config:', {
   NEXTAUTH_URL: process.env.NEXTAUTH_URL || null,
