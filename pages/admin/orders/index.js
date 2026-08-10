@@ -79,7 +79,7 @@ export default function AdminOrders(){
                     </button>
                     {expandedGroups[group.key] && <div className="p-3 space-y-2">{group.orders.map(order => (
                       <div key={order._id} className="p-3 border rounded flex items-center justify-between gap-3">
-                        <div><div className="font-medium">{formatReferenceId('order', order, order._isGuest)} — ₹{Number(order.subtotal || 0).toFixed(2)}</div><div className="text-sm text-gray-500">{order.createdAt ? new Date(order.createdAt).toLocaleString('en-IN') : ''} • {order.status || 'guest'}</div></div>
+                        <div><div className="font-medium">{formatReferenceId('order', order, order._isGuest)} — {order.total ? `₹${Number(order.total).toFixed(2)}` : `₹${Number(order.subtotal || 0).toFixed(2)}`}</div><div className="text-sm text-gray-500">{order.createdAt ? new Date(order.createdAt).toLocaleString('en-IN') : ''} • {order.status || 'guest'}</div></div>
                         <a href={`/admin/${order._isGuest ? 'guest-orders' : 'orders'}/${order._id}`} className="px-3 py-1 bg-blue-600 text-white rounded">View</a>
                       </div>
                     ))}</div>}

@@ -5,6 +5,7 @@ const OrderSchema = new mongoose.Schema({
   items: [{ productId: String, title: String, qty: Number, price: Number }],
   subtotal: Number,
   coupon: { code: String, discountAmount: Number },
+  total: Number,
   name: String,
   phone: String,
   email: String,

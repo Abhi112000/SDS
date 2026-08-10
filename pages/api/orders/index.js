@@ -64,9 +64,30 @@ export default async function handler(req, res) {
       couponResult = { code: updated.code, discountAmount: discount };
     }
 
+    const deliveryChargeAmount = Number(deliveryCharge || 0);
+    const totalAmount = Math.max(0, (Number(subtotal || 0) + deliveryChargeAmount - (couponResult?.discountAmount || 0)));
+
     let order;
     if(!session){
-      const g = await GuestOrder.create({ items, subtotal, coupon: couponResult, name, phone, email, address, deliveryPincode, locationUrl, whatsapp, deliveryLatitude, deliveryLongitude, deliveryDistanceKm, deliveryRoughDistanceKm, deliveryLocationPending, deliveryCharge: Number(deliveryCharge || 0) });
+      const g = await GuestOrder.create({
+        items,
+        subtotal,
+        coupon: couponResult,
+        name,
+        phone,
+        email,
+        address,
+        deliveryPincode,
+        locationUrl,
+        whatsapp,
+        deliveryLatitude,
+        deliveryLongitude,
+        deliveryDistanceKm,
+        deliveryRoughDistanceKm,
+        deliveryLocationPending,
+        deliveryCharge: deliveryChargeAmount,
+        total: totalAmount
+      });
       order = g;
     } else {
       // Save as a user order and also include profile fields for admin visibility
@@ -88,7 +109,8 @@ export default async function handler(req, res) {
         deliveryDistanceKm,
         deliveryRoughDistanceKm,
         deliveryLocationPending,
-        deliveryCharge: Number(deliveryCharge || 0),
+        deliveryCharge: deliveryChargeAmount,
+        total: totalAmount,
         createdAt: new Date()
       });
     }

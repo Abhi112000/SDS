@@ -32,8 +32,13 @@ const buildOrderSummary = (o, action) => {
   (o.items || []).forEach(item => {
     lines.push(`• ${item.title} x ${item.qty || 1} @ ₹${item.price || 0} = ₹${(((item.qty||1)*(item.price||0))||0).toFixed(2)}`);
   });
-  lines.push('', `Subtotal: ₹${Number(o.subtotal || 0).toFixed(2)}`);
-  const total = Number(o.total ?? ((o.subtotal || 0) - (o.coupon?.discountAmount || 0)));
+  const subtotal = Number(o.subtotal || 0);
+  const deliveryCharge = Number(o.deliveryCharge || 0);
+  const discount = Number(o.coupon?.discountAmount || 0);
+  const total = Number(o.total ?? (subtotal + deliveryCharge - discount));
+  lines.push('', `Subtotal: ₹${subtotal.toFixed(2)}`);
+  if (deliveryCharge) lines.push(`Delivery: ₹${deliveryCharge.toFixed(2)}`);
+  if (discount) lines.push(`Discount: ₹${discount.toFixed(2)}`);
   lines.push(`Total: ₹${total.toFixed(2)}`);
   return lines.join('\n');
 };
@@ -55,9 +60,10 @@ export default function Orders(){
             return (
               <tr key={o._id} className="align-top">
                 <td>{formatDateTime(o.createdAt)}</td>
-                <td>₹{o.subtotal}</td>
+                <td>{o.total ? `₹${o.total.toFixed(2)}` : `₹${Number(o.subtotal || 0).toFixed(2)}`}</td>
                 <td>{o.status}</td>
-                <td>
+                <td className="space-x-2">
+                  <a href={`/orders/${o._id}`} className="px-3 py-1 bg-blue-600 text-white rounded">View</a>
                   {o.status !== 'cancelled' ? (
                     <a href={getWhatsAppHref(buildOrderSummary(o, actionText))} target="_blank" rel="noreferrer" className={`px-3 py-1 rounded text-white ${isCancelable ? 'bg-red-600' : 'bg-orange-600'}`}>
                       {isCancelable ? 'Cancel on WhatsApp' : 'Request cancel on WhatsApp'}

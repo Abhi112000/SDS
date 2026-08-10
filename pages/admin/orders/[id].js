@@ -54,9 +54,13 @@ export default function AdminOrderDetail({ initialOrder }){
     (payload.items || []).forEach(item => {
       lines.push(`• ${item.title} x ${item.qty || 1} @ ₹${item.price || 0} = ₹${((Number(item.qty) || 1) * (Number(item.price) || 0)).toFixed(2)}`);
     });
-    lines.push('', `Subtotal: ₹${Number(payload.subtotal || 0).toFixed(2)}`);
-    lines.push(`Discount: ₹${Number(payload.coupon?.discountAmount || 0).toFixed(2)}`);
-    const totalValue = Number(payload.total ?? ((payload.subtotal || 0) - (payload.coupon?.discountAmount || 0)));
+    const subtotal = Number(payload.subtotal || 0);
+    const deliveryCharge = Number(payload.deliveryCharge || 0);
+    const discount = Number(payload.coupon?.discountAmount || 0);
+    const totalValue = Number(payload.total ?? (subtotal + deliveryCharge - discount));
+    lines.push('', `Subtotal: ₹${subtotal.toFixed(2)}`);
+    lines.push(`Delivery: ₹${deliveryCharge.toFixed(2)}`);
+    lines.push(`Discount: ₹${discount.toFixed(2)}`);
     lines.push(`Total: ₹${totalValue.toFixed(2)}`);
     return lines.join('\n');
   };
@@ -78,16 +82,17 @@ export default function AdminOrderDetail({ initialOrder }){
           <button onClick={()=>router.back()} className="mb-4 px-3 py-1 border rounded">Back</button>
       <h1 className="text-2xl font-bold mb-4">Order {formatReferenceId('order', order, !!order.guest)}</h1>
       <div className="bg-white p-4 rounded shadow mb-4">
-        <div><strong>Customer:</strong> {order.customerName || order.userName || order.customerEmail}</div>
+        <div><strong>Customer:</strong> {order.customerName || order.userName || order.customerEmail || order.name}</div>
         <div><strong>Phone:</strong> {order.whatsapp || order.phone || ''}</div>
         <div><strong>Address:</strong> {order.address || ''}</div>
-        <div className="mt-2"><strong>Items:</strong>
+        <div><strong>Delivery charge:</strong> {order.deliveryCharge != null ? `₹${Number(order.deliveryCharge).toFixed(2)}` : '₹0.00'}</div>
+        <div><strong>Discount:</strong> - {order.coupon?.discountAmount != null ? `₹${Number(order.coupon.discountAmount).toFixed(2)}` : '₹0.00'}</div>
+        <div><strong>Total:</strong> {order.total != null ? `₹${Number(order.total).toFixed(2)}` : `₹${Number((order.subtotal || 0) + (order.deliveryCharge || 0) - (order.coupon?.discountAmount || 0)).toFixed(2)}`}</div>
           <ul className="list-disc ml-6 mt-2">
             {(order.items||[]).map(i=> <li key={i._id || i.sku}>{i.title} × {i.qty} — ₹{i.price}</li>)}
           </ul>
         </div>
-      </div>
-
+      
       <div className="flex items-center gap-3 mt-4">
         <div className="flex items-center gap-2">
           <label className="text-sm font-medium">Order status</label>

@@ -132,18 +132,19 @@ export default function Dashboard({ user, orders }) {
                 <div className="flex justify-between items-start gap-4">
                   <div>
                     <div className="text-sm text-gray-600">Order ID: {o._id}</div>
-                    <div className="font-medium">{o.name || user?.name} — ₹{o.subtotal}</div>
+                    <div className="font-medium">{o.name || user?.name} — {o.total ? `₹${Number(o.total).toFixed(2)}` : `₹${Number(o.subtotal || 0).toFixed(2)}`}</div>
                     <div className="text-sm text-gray-500">{formatDateTime(o.createdAt)}</div>
                   </div>
                   <div className="px-3 py-1 rounded border border-gray-200 text-mehroon">{o.status}</div>
                 </div>
-                {o.status !== 'cancelled' && (
-                  <div className="mt-4 flex flex-wrap gap-2">
+                <div className="mt-4 flex flex-wrap gap-2">
+                  <a href={`/orders/${o._id}`} className="px-3 py-1 bg-blue-600 text-white rounded">View details</a>
+                  {o.status !== 'cancelled' && (
                     <a href={getWhatsAppHref(supportText)} target="_blank" rel="noreferrer" className={`px-3 py-1 rounded text-white ${isCancelable ? 'bg-red-600' : 'bg-orange-600'}`}>
-                      {isCancelable ? 'Cancel order on WhatsApp' : 'Request cancellation on WhatsApp'}
+                      {isCancelable ? 'Cancel order on WhatsApp' : 'Request cancel on WhatsApp'}
                     </a>
-                  </div>
-                )}
+                  )}
+                </div>
               </div>
             );
           })}

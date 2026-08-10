@@ -5,6 +5,16 @@ import User from "@/models/User";
 import bcrypt from "bcryptjs";
 
 const NEXTAUTH_URL_VALUE = process.env.NEXTAUTH_URL || (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : '');
+if (!process.env.NEXTAUTH_URL && NEXTAUTH_URL_VALUE) {
+  process.env.NEXTAUTH_URL = NEXTAUTH_URL_VALUE;
+}
+
+console.log('[next-auth] runtime config:', {
+  NEXTAUTH_URL: process.env.NEXTAUTH_URL || null,
+  VERCEL_URL: process.env.VERCEL_URL || null,
+  NEXTAUTH_SECRET_SET: !!process.env.NEXTAUTH_SECRET,
+  USE_SECURE_COOKIES: process.env.NODE_ENV === 'production' && String(NEXTAUTH_URL_VALUE).startsWith('https://'),
+});
 
 export const authOptions = {
   providers: [

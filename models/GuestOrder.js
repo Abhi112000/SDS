@@ -4,6 +4,7 @@ const GuestOrderSchema = new mongoose.Schema({
   items: Array,
   subtotal: Number,
   coupon: Object,
+  total: Number,
   name: String,
   phone: String,
   whatsapp: String,
