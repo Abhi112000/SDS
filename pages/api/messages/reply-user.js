@@ -2,7 +2,7 @@ import dbConnect from '@/lib/mongodb';
 import Message from '../../../models/Message';
 import pusher from '../../../lib/pusher';
 import { getServerSession } from 'next-auth/next';
-import { authOptions } from '../../auth/[...nextauth]';
+import { authOptions } from '../auth/[...nextauth]';
 
 export default async function handler(req,res){
   await dbConnect();
