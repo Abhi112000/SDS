@@ -12,6 +12,7 @@ const ProductSchema = new mongoose.Schema({
   // saleHistory: array of objects recording sale events { price, startAt, endAt, active }
   saleHistory: [mongoose.Schema.Types.Mixed],
   featured: { type: Boolean, default: false },
+  isNewArrival: { type: Boolean, default: false },
   sku: String,
   // image can be a string (legacy) or an object with sizes { thumb, card, large }
   image: mongoose.Schema.Types.Mixed,

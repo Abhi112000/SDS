@@ -50,7 +50,7 @@ export default function AdminProducts({ initial }){
   const [saving, setSaving] = useState(false);
   const toast = useToast();
   const [updatingFeatured, setUpdatingFeatured] = useState({});
-  const [form, setForm] = useState({ title: '', price: '', sku: '', category: '', stock: 9999, description: '', images: [], featuredImage: '', featured: false, originalPrice: '', onSale: false, salePrice: '', tags: [], saleHistory: [] });
+  const [form, setForm] = useState({ title: '', price: '', sku: '', category: '', stock: 9999, description: '', images: [], featuredImage: '', featured: false, isNewArrival: false, originalPrice: '', onSale: false, salePrice: '', tags: [], saleHistory: [] });
   const [editingId, setEditingId] = useState(null);
   const [uploadProgress, setUploadProgress] = useState({});
   const [bulkFile, setBulkFile] = useState(null);
@@ -302,7 +302,8 @@ export default function AdminProducts({ initial }){
       stock: Number(form.stock || 0),
       description: form.description,
       onSale: !!form.onSale,
-      featured: !!form.featured
+      featured: !!form.featured,
+      isNewArrival: !!form.isNewArrival
     };
     // include originalPrice only if provided (not empty string / undefined)
     if(form.originalPrice !== undefined && form.originalPrice !== '') payload.originalPrice = Number(form.originalPrice || 0);
@@ -347,7 +348,7 @@ export default function AdminProducts({ initial }){
       const data = await res.json();
       if(!res.ok) { toast?.push?.({ message: data?.error || 'Failed to save product', type: 'error' }); return; }
       toast?.push?.({ message: 'Product updated', type: 'success' });
-      setForm({ title: '', price: '', sku: '', category: '', stock: 9999, description: '', images: [], featuredImage: '', featured: false });
+      setForm({ title: '', price: '', sku: '', category: '', stock: 9999, description: '', images: [], featuredImage: '', featured: false, isNewArrival: false });
       setEditingId(null);
       load();
       return;
@@ -360,7 +361,7 @@ export default function AdminProducts({ initial }){
   }
 
   // Create new product flow (POST) — include all fields
-  payload = { ...form, price: Number(form.price || 0), originalPrice: form.originalPrice ? Number(form.originalPrice) : undefined, salePrice: form.salePrice ? Number(form.salePrice) : undefined, onSale: !!form.onSale, stock: Number(form.stock || 0), sku: finalSku.toUpperCase(), category: form.category || '', image: featuredUrl || firstImg || '' };
+  payload = { ...form, price: Number(form.price || 0), originalPrice: form.originalPrice ? Number(form.originalPrice) : undefined, salePrice: form.salePrice ? Number(form.salePrice) : undefined, onSale: !!form.onSale, stock: Number(form.stock || 0), sku: finalSku.toUpperCase(), category: form.category || '', image: featuredUrl || firstImg || '', isNewArrival: !!form.isNewArrival };
   payload.featured = !!form.featured;
   // if creating and onSale selected, add SALE! tag and initial saleHistory entry
   if(payload.onSale){
@@ -375,7 +376,7 @@ export default function AdminProducts({ initial }){
     const data = await res.json();
     if(!res.ok) { toast?.push?.({ message: data?.error || 'Failed to save product', type: 'error' }); return; }
     toast?.push?.({ message: 'Product created', type: 'success' });
-    setForm({ title: '', price: '', sku: '', category: '', stock: 9999, description: '', images: [], featuredImage: '', featured: false });
+    setForm({ title: '', price: '', sku: '', category: '', stock: 9999, description: '', images: [], featuredImage: '', featured: false, isNewArrival: false });
     setEditingId(null);
     load();
   }catch(err){
@@ -500,11 +501,12 @@ export default function AdminProducts({ initial }){
                   <label className="flex items-center gap-2"><input type="checkbox" checked={form.onSale} onChange={e=>setForm(f=>({...f, onSale: e.target.checked}))} /> On Sale</label>
                   {form.onSale && (<input value={form.salePrice} onChange={e=>setForm(f=>({...f, salePrice: e.target.value}))} placeholder="Sale price" className="p-2 border rounded" />)}
                   <label className="flex items-center gap-2"><input type="checkbox" checked={form.featured} onChange={e=>setForm(f=>({...f, featured: e.target.checked}))} /> Featured</label>
+                  <label className="flex items-center gap-2"><input type="checkbox" checked={form.isNewArrival} onChange={e=>setForm(f=>({...f, isNewArrival: e.target.checked}))} /> New Arrival</label>
                 </div>
 
                 <div className="flex gap-2">
                   <button disabled={saving} className="px-4 py-2 bg-blue-600 text-white rounded disabled:opacity-60" type="submit">{saving ? (editingId ? 'Saving...' : 'Creating...') : (editingId ? 'Save changes' : 'Create product')}</button>
-                  {editingId && <button type="button" onClick={()=>{ setEditingId(null); setForm({ title: '', price: '', sku: '', category: '', stock: 9999, description: '', images: [], featuredImage: '', featured: false }); }} className="px-3 py-2 border rounded">Cancel</button>}
+                  {editingId && <button type="button" onClick={()=>{ setEditingId(null); setForm({ title: '', price: '', sku: '', category: '', stock: 9999, description: '', images: [], featuredImage: '', featured: false, isNewArrival: false }); }} className="px-3 py-2 border rounded">Cancel</button>}
                 </div>
               </form>
             </div>
@@ -523,7 +525,7 @@ export default function AdminProducts({ initial }){
                   {products.map(p => (
                   <div key={p._id} className="p-3 rounded shadow flex items-center justify-between">
                     <div>
-                      <div className="font-medium">{p.title} {p.featured ? <span className="ml-2 inline-flex items-center rounded bg-yellow-100 px-2 py-0.5 text-xs font-semibold text-yellow-800">Featured</span> : null}</div>
+                      <div className="font-medium">{p.title} {p.featured ? <span className="ml-2 inline-flex items-center rounded bg-yellow-100 px-2 py-0.5 text-xs font-semibold text-yellow-800">Featured</span> : null} {p.isNewArrival ? <span className="ml-2 inline-flex items-center rounded bg-emerald-100 px-2 py-0.5 text-xs font-semibold text-emerald-800">New</span> : null}</div>
                       <div className="text-sm text-gray-600">
                         SKU: {p.sku || '—'} • Price: ₹{Number(p.price||0).toFixed(2)} • Category: {(() => {
                           const cat = categories.find(c => String(c._id || c.id) === String(p.category) || (c.name || c.title || '') === String(p.category));
@@ -533,7 +535,7 @@ export default function AdminProducts({ initial }){
                       <div className="text-xs text-slate-500 mt-1">Stock: {p.stock || 0} • {p.onSale ? `Sale ₹${Number(p.salePrice||0).toFixed(2)}` : 'Regular price'}</div>
                     </div>
                     <div className="flex items-center gap-2">
-                      <button onClick={()=>{ setEditingId(p._id); setForm({ ...p, price: p.price, originalPrice: p.originalPrice, salePrice: p.salePrice, sku: (p.sku||'').toUpperCase(), category: p.category || '', featured: !!p.featured, _prev: p }); window.scrollTo({ top: 0, behavior: 'smooth' }); }} className="px-2 py-1 border rounded">Edit</button>
+                      <button onClick={()=>{ setEditingId(p._id); setForm({ ...p, price: p.price, originalPrice: p.originalPrice, salePrice: p.salePrice, sku: (p.sku||'').toUpperCase(), category: p.category || '', featured: !!p.featured, isNewArrival: !!p.isNewArrival, _prev: p }); window.scrollTo({ top: 0, behavior: 'smooth' }); }} className="px-2 py-1 border rounded">Edit</button>
                       <button onClick={async ()=>{ if(!confirm('Delete this product?')) return; const r = await fetch('/api/products?id='+p._id, { method: 'DELETE', credentials: 'include' }); if(!r.ok){ toast?.push?.({ message: 'Delete failed', type: 'error' }); return; } load(); }} className="px-2 py-1 border rounded text-red-600">Delete</button>
                       <button onClick={()=>handleToggleFeatured(p._id, !p.featured)} disabled={!!updatingFeatured[p._id]} className="px-2 py-1 border rounded text-sm">{p.featured ? 'Unfeature' : 'Feature'}</button>
                     </div>

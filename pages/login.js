@@ -7,7 +7,7 @@ export default function Login() {
   const toast = useToast();
   const router = useRouter();
   const [loading, setLoading] = useState(false);
-  const callbackUrl = typeof router.query.callbackUrl === 'string' ? router.query.callbackUrl : '/profile';
+  const callbackUrl = typeof router.query.callbackUrl === 'string' ? router.query.callbackUrl : '/dashboard';
 
   return (
     <div className="flex flex-col items-center justify-center min-h-screen">
@@ -37,15 +37,8 @@ export default function Login() {
               } else {
                 toast.push({ message: 'Login successful! Redirecting...', type: 'success' });
                 const destination = result?.url || callbackUrl;
-                if (!result?.url && callbackUrl === '/profile') {
-                  let hasCartItems = false;
-                  try {
-                    const savedCart = JSON.parse(localStorage.getItem('sd_cart') || '{}');
-                    hasCartItems = Array.isArray(savedCart.items) && savedCart.items.length > 0;
-                  } catch (error) {
-                    hasCartItems = false;
-                  }
-                  await router.replace(hasCartItems ? '/cart' : '/shop');
+                if (!result?.url && callbackUrl === '/dashboard') {
+                  await router.replace('/dashboard');
                 } else {
                   await router.replace(destination);
                 }
@@ -95,7 +88,7 @@ export async function getServerSideProps(context) {
   if (session) {
     return {
       redirect: {
-        destination: session.user?.role === 'admin' ? '/admin' : (context.query.callbackUrl || '/profile'),
+        destination: session.user?.role === 'admin' ? '/admin' : (context.query.callbackUrl || '/dashboard'),
         permanent: false,
       },
     };

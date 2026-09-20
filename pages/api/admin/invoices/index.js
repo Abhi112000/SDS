@@ -2,6 +2,8 @@ import { getSession } from 'next-auth/react';
 import { getToken } from 'next-auth/jwt';
 import dbConnect from '@/lib/mongodb';
 import Invoice from '@/models/Invoice';
+import Order from '@/models/Order';
+import User from '@/models/User';
 
 export default async function handler(req, res){
   // try session first, then fallback to JWT token (useful for some server environments)
@@ -11,9 +13,9 @@ export default async function handler(req, res){
     try{ token = await getToken({ req, secret: process.env.NEXTAUTH_SECRET }); }catch(e){ token = null; }
   }
   const isAdmin = (session && session.user && session.user.role === 'admin') || (token && (token.role === 'admin' || (token.user && token.user.role === 'admin')));
-  if(!isAdmin) return res.status(401).json({ error: 'Unauthorized' });
   await dbConnect();
   if(req.method === 'GET'){
+    if(!isAdmin) return res.status(401).json({ error: 'Unauthorized' });
     try{
       const items = await Invoice.find({}).sort({ createdAt: -1 }).limit(200).lean();
       return res.status(200).json({ invoices: items });
@@ -21,15 +23,28 @@ export default async function handler(req, res){
   }
   if(req.method === 'POST'){
     try{
+      if(!session && !token) return res.status(401).json({ error: 'Unauthorized' });
       const body = req.body || {};
-      // ensure invoiceId
-      if(!body.invoiceId) body.invoiceId = `INV-${Date.now()}`;
+      const authenticatedUserEmail = session?.user?.email || token?.email || token?.user?.email || '';
+      const isSelfGeneratedOrder = !isAdmin && !!body.orderId && authenticatedUserEmail;
+      if(!isAdmin && !isSelfGeneratedOrder) return res.status(403).json({ error: 'Unauthorized' });
+      if(!isAdmin && isSelfGeneratedOrder){
+        const currentUser = await User.findOne({ email: authenticatedUserEmail }).lean();
+        const order = await Order.findById(body.orderId).lean();
+        if(!order) return res.status(404).json({ error: 'Order not found' });
+        const userMatches = String(order.userId || '') === String(currentUser?._id || '') || String(order.email || '').toLowerCase() === String(authenticatedUserEmail).toLowerCase();
+        if(!userMatches) return res.status(403).json({ error: 'Not allowed to generate this invoice' });
+        const normalizedStatus = String(order.status || '').toLowerCase();
+        if(!['delivered', 'completed'].includes(normalizedStatus)) return res.status(400).json({ error: 'Order must be delivered or completed before creating an invoice' });
+      }
+      // ensure invoiceId with date-time stamp in the suffix for traceability
+      if(!body.invoiceId){
+        const ts = new Date();
+        body.invoiceId = `INV-${ts.toISOString().replace(/[-:T.]/g, '').slice(0, 14)}`;
+      }
       const payload = body.payload || {};
       const deliveryCharge = Number(body.shipping ?? body.deliveryCharge ?? payload.deliveryCharge ?? 0);
       body.shipping = deliveryCharge;
-      body.deliveryPincode = body.deliveryPincode || payload.deliveryPincode || '';
-      body.deliveryDistanceKm = body.deliveryDistanceKm ?? payload.deliveryDistanceKm ?? null;
-      body.deliveryRoughDistanceKm = body.deliveryRoughDistanceKm ?? payload.deliveryRoughDistanceKm ?? null;
       body.deliveryLocationPending = body.deliveryLocationPending ?? payload.deliveryLocationPending ?? false;
       body.deliveryLocationUrl = body.deliveryLocationUrl || payload.locationUrl || '';
       if(payload.deliveryCharge !== undefined || body.total === undefined) body.total = Number(body.subtotal || payload.subtotal || 0) - Number(body.discount || 0) + deliveryCharge + Number(body.tax || 0);
@@ -38,8 +53,21 @@ export default async function handler(req, res){
       return res.status(201).json({ invoice: doc });
     }catch(e){ return res.status(500).json({ error: e.message }); }
   }
+  if(req.method === 'DELETE'){
+    try{
+      if(!isAdmin) return res.status(401).json({ error: 'Unauthorized' });
+      const body = req.body || {};
+      const { id, invoiceId } = body;
+      if(!id && !invoiceId) return res.status(400).json({ error: 'Missing invoice id' });
+      const query = id ? { _id: id } : { invoiceId };
+      const deleted = await Invoice.findOneAndDelete(query).lean();
+      if(!deleted) return res.status(404).json({ error: 'Invoice not found' });
+      return res.status(200).json({ ok: true, deleted });
+    }catch(e){ return res.status(500).json({ error: e.message }); }
+  }
   if(req.method === 'PUT'){
     try{
+      if(!isAdmin) return res.status(401).json({ error: 'Unauthorized' });
       const body = req.body || {};
       const { id, invoiceId } = body;
       if(!id && !invoiceId) return res.status(400).json({ error: 'Missing invoice id' });
@@ -54,6 +82,6 @@ export default async function handler(req, res){
       return res.status(200).json({ invoice: updated });
     }catch(e){ return res.status(500).json({ error: e.message }); }
   }
-  res.setHeader('Allow', 'GET,POST,PUT');
+  res.setHeader('Allow', 'GET,POST,PUT,DELETE');
   res.status(405).end('Method Not Allowed');
 }

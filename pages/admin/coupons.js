@@ -9,6 +9,7 @@ const fetcher = url => fetch(url, { credentials: 'include' }).then(r=>r.json());
 
 export default function AdminCoupons(){
   const { data, mutate } = useSWR('/api/coupons/admin', fetcher);
+  const { data: usersData } = useSWR('/api/admin/users', fetcher);
   const [form, setForm] = useState({ code: '', type: 'percent', value: 10, public: true, maxUses: 1 });
   const [busy, setBusy] = useState(false);
   const toast = useToast();
@@ -60,6 +61,20 @@ export default function AdminCoupons(){
           </select>
           <input value={form.value} onChange={e=>setForm({...form, value: Number(e.target.value)})} placeholder="Value" className="w-full p-2 border mb-2" />
           <div className="flex gap-2 items-center mb-2"><label><input type="checkbox" checked={form.public} onChange={e=>setForm({...form, public: e.target.checked})} /> Public</label></div>
+          {!form.public && (
+            <div className="mb-2">
+              <label className="block text-sm font-medium mb-1">Assign to users</label>
+              <select multiple value={form.allowedUserIds || []} onChange={e=>{
+                const opts = Array.from(e.target.selectedOptions).map(o=>o.value);
+                setForm(f=>({...f, allowedUserIds: opts}));
+              }} className="w-full p-2 border h-36">
+                {(usersData?.users || []).map(u=> (
+                  <option key={u._id} value={u._id}>{u.name || u.email} • {u.email}</option>
+                ))}
+              </select>
+              <div className="text-xs text-gray-500 mt-1">Select users who should see this private coupon.</div>
+            </div>
+          )}
           <input value={form.maxUses} onChange={e=>setForm({...form, maxUses: Number(e.target.value)})} placeholder="Max uses" className="w-full p-2 border mb-2" />
           <button onClick={create} disabled={busy} className="px-4 py-2 btn-primary rounded disabled:opacity-60">{busy ? 'Saving...' : 'Create'}</button>
         </div>
@@ -77,6 +92,9 @@ export default function AdminCoupons(){
                     {!c.active && <span className="text-xs bg-red-100 text-red-700 px-2 py-0.5 rounded">Inactive</span>}
                   </div>
                   <div className="text-sm text-gray-500 mt-1">Uses: {c.usedCount || 0}/{c.maxUses || 1}</div>
+                  {!c.public && c.allowedUserIds && c.allowedUserIds.length > 0 && (
+                    <div className="text-xs text-gray-600 mt-1">Assigned to: {c.allowedUserIds.map(id=> (usersData?.users?.find(u=>u._id===id)?.email || id)).join(', ')}</div>
+                  )}
                 </div>
                 <div className="flex items-center gap-2">
                   <button onClick={()=>remove(c._id)} className="px-3 py-1 bg-red-600 text-white rounded text-sm">Delete</button>

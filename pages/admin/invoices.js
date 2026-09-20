@@ -56,7 +56,7 @@ export default function AdminInvoices(){
   }
 
   function openCustomInvoice(){
-    setInvoiceCustomer({ name: '', phone: '', email: '', address: '' });
+    setInvoiceCustomer({ name: '', phone: '', email: '', address: '', discount: 0, shipping: 0 });
     setInvoiceItems([{ title: '', qty: 1, price: 0 }]);
   }
 
@@ -68,12 +68,20 @@ export default function AdminInvoices(){
 
   const invoiceSubtotal = invoiceItems.reduce((sum, item) => sum + Number(item.price || 0) * Number(item.qty || 1), 0);
 
+  function buildInvoiceId(){
+    const ts = new Date();
+    return `INV-${ts.toISOString().replace(/[-:T.]/g, '').slice(0, 14)}`;
+  }
+
   async function saveCustomerInvoice(){
     if(!invoiceCustomer?.name || !invoiceItems.some(item => item.title && Number(item.price) > 0)) return toast?.push?.({ message: 'Customer name and at least one valid item are required', type: 'error' });
     setInvoiceBusy(true);
     try{
-      const payload = { name: invoiceCustomer.name, phone: invoiceCustomer.phone, email: invoiceCustomer.email, address: invoiceCustomer.address, items: invoiceItems.filter(item => item.title), subtotal: invoiceSubtotal, total: invoiceSubtotal, createdAt: new Date().toISOString() };
-      const res = await fetch('/api/admin/invoices', { method: 'POST', credentials: 'include', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ type: 'custom', payload, subtotal: invoiceSubtotal, total: invoiceSubtotal }) });
+      const discount = Number(invoiceCustomer.discount || 0);
+      const shipping = Number(invoiceCustomer.shipping || 0);
+      const total = Number(invoiceSubtotal || 0) - discount + shipping;
+      const payload = { name: invoiceCustomer.name, phone: invoiceCustomer.phone, email: invoiceCustomer.email, address: invoiceCustomer.address, items: invoiceItems.filter(item => item.title), subtotal: invoiceSubtotal, discount, shipping, total, createdAt: new Date().toISOString() };
+      const res = await fetch('/api/admin/invoices', { method: 'POST', credentials: 'include', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ type: 'custom', payload, subtotal: invoiceSubtotal, discount, shipping, total }) });
       const data = await res.json();
       if(!res.ok) throw new Error(data.error || 'Invoice creation failed');
       toast?.push?.({ message: 'Invoice created successfully', type: 'success' });
@@ -81,6 +89,26 @@ export default function AdminInvoices(){
       load();
     }catch(error){ toast?.push?.({ message: error.message || 'Invoice creation failed', type: 'error' }); }
     finally{ setInvoiceBusy(false); }
+  }
+
+  async function deleteInvoice(invoiceId){
+    if(!invoiceId) return;
+    const confirmed = window.confirm('Are you sure you want to delete this invoice?');
+    if(!confirmed) return;
+    try{
+      const res = await fetch('/api/admin/invoices', {
+        method: 'DELETE',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: invoiceId })
+      });
+      const data = await res.json().catch(() => ({}));
+      if(!res.ok) throw new Error(data.error || 'Delete failed');
+      toast?.push?.({ message: 'Invoice deleted', type: 'success' });
+      load();
+    }catch(error){
+      toast?.push?.({ message: error.message || 'Delete failed', type: 'error' });
+    }
   }
 
   async function saveSettings(){
@@ -103,7 +131,6 @@ export default function AdminInvoices(){
           <div className="flex items-center justify-between mb-4">
             <div>
               <h1 className="text-2xl font-bold">Invoices</h1>
-              <p className="text-sm text-gray-600">Grouped by customer name and phone number.</p>
             </div>
             <a href="/admin" className="px-3 py-1 bg-gray-100 rounded">Back</a>
           </div>
@@ -154,7 +181,8 @@ export default function AdminInvoices(){
                               </div>
                               <div className="flex items-center gap-2">
                                 <div className="text-sm font-semibold">₹{Number(inv.total || 0).toFixed(2)}</div>
-                                <a href={`/admin/invoices/${inv._id || inv.invoiceId}`} className="px-3 py-1 bg-blue-600 text-white rounded text-sm">View</a>
+                                <a href={`/api/admin/invoices/print?id=${encodeURIComponent(inv._id || inv.invoiceId)}`} target="_blank" rel="noreferrer" className="px-3 py-1 bg-blue-600 text-white rounded text-sm">View</a>
+                                <button type="button" onClick={() => deleteInvoice(inv._id || inv.invoiceId)} className="px-3 py-1 border border-red-200 text-red-600 rounded text-sm">Delete</button>
                               </div>
                             </div>
                           </div>
@@ -167,19 +195,79 @@ export default function AdminInvoices(){
             )}
           </div>
 
-          <section className="bg-white p-4 rounded shadow mt-4">
-            <div className="flex items-center justify-between">
-              <div><h2 className="font-semibold">Invoice settings</h2><p className="text-sm text-gray-600">Settings are locked until you explicitly choose Edit.</p></div>
-              {!editingSettings ? <button type="button" onClick={()=>setEditingSettings(true)} className="px-3 py-1 border rounded">Edit settings</button> : <div className="flex gap-2"><button type="button" onClick={()=>{setSettingsDraft(invoiceSettings);setEditingSettings(false);}} className="px-3 py-1 border rounded">Cancel</button><button type="button" onClick={saveSettings} disabled={settingsBusy} className="px-3 py-1 bg-blue-600 text-white rounded">{settingsBusy ? 'Saving...' : 'Save settings'}</button></div>}
-            </div>
-            <div className="grid md:grid-cols-2 gap-3 mt-3">
-              {['brandName','address','phone','email','watermarkText'].map(field => <div key={field} className={field === 'address' || field === 'watermarkText' ? 'md:col-span-2' : ''}><label className="block text-sm capitalize">{field.replace(/([A-Z])/g, ' $1')}</label>{field === 'address' || field === 'watermarkText' ? <textarea disabled={!editingSettings} value={settingsDraft?.[field] || ''} onChange={e=>setSettingsDraft(prev=>({...prev,[field]:e.target.value}))} className="w-full p-2 border rounded" rows={2} /> : <input disabled={!editingSettings} value={settingsDraft?.[field] || ''} onChange={e=>setSettingsDraft(prev=>({...prev,[field]:e.target.value}))} className="w-full p-2 border rounded" />}</div>)}
-            </div>
-          </section>
         </main>
       </div>
 
-      {invoiceCustomer && <div className="fixed inset-0 z-50 bg-black/40 flex items-center justify-center p-4"><div className="bg-white rounded p-5 w-full max-w-2xl max-h-[90vh] overflow-auto"><div className="flex justify-between items-center mb-3"><h2 className="text-lg font-semibold">Create invoice for {invoiceCustomer.name}</h2><button type="button" onClick={()=>setInvoiceCustomer(null)} className="px-2 py-1 border rounded">Close</button></div><div className="grid md:grid-cols-2 gap-3"><input value={invoiceCustomer.name} onChange={e=>setInvoiceCustomer(prev=>({...prev,name:e.target.value}))} placeholder="Name" className="p-2 border rounded" /><input value={invoiceCustomer.phone} onChange={e=>setInvoiceCustomer(prev=>({...prev,phone:e.target.value}))} placeholder="Phone" className="p-2 border rounded" /><input value={invoiceCustomer.email} onChange={e=>setInvoiceCustomer(prev=>({...prev,email:e.target.value}))} placeholder="Email" className="p-2 border rounded" /><textarea value={invoiceCustomer.address} onChange={e=>setInvoiceCustomer(prev=>({...prev,address:e.target.value}))} placeholder="Address" className="p-2 border rounded md:col-span-2" /></div><h3 className="font-medium mt-4 mb-2">Items</h3>{invoiceItems.map((item,index)=><div key={index} className="grid grid-cols-12 gap-2 mb-2"><input value={item.title} onChange={e=>setInvoiceItems(prev=>prev.map((it,i)=>i===index?{...it,title:e.target.value}:it))} placeholder="Item" className="col-span-6 p-2 border rounded" /><input type="number" value={item.qty} onChange={e=>setInvoiceItems(prev=>prev.map((it,i)=>i===index?{...it,qty:Number(e.target.value)}:it))} className="col-span-2 p-2 border rounded" /><input type="number" value={item.price} onChange={e=>setInvoiceItems(prev=>prev.map((it,i)=>i===index?{...it,price:Number(e.target.value)}:it))} placeholder="Price" className="col-span-3 p-2 border rounded" /><button type="button" onClick={()=>setInvoiceItems(prev=>prev.filter((_,i)=>i!==index))} className="col-span-1 text-red-600">×</button></div>)}<button type="button" onClick={()=>setInvoiceItems(prev=>[...prev,{title:'',qty:1,price:0}])} className="px-3 py-1 border rounded">Add item</button><div className="mt-4 flex justify-between font-semibold"><span>Total</span><span>₹{invoiceSubtotal.toFixed(2)}</span></div><button type="button" onClick={saveCustomerInvoice} disabled={invoiceBusy} className="mt-4 w-full px-3 py-2 bg-green-600 text-white rounded disabled:opacity-60">{invoiceBusy ? 'Creating...' : 'Create invoice'}</button></div></div>}
+      {invoiceCustomer && (
+        <div className="modal-overlay" onClick={(e)=>{ if(e.target === e.currentTarget) setInvoiceCustomer(null); }}>
+          <div className="modal-panel compact-gap" style={{ maxWidth: '880px', maxHeight: '90vh' }} onClick={(e)=>e.stopPropagation()}>
+            <div className="flex justify-between items-center mb-3">
+              <h2 className="text-lg font-semibold">Create invoice for {invoiceCustomer.name}</h2>
+              <button type="button" onClick={()=>setInvoiceCustomer(null)} className="px-2 py-1 border rounded">Close</button>
+            </div>
+
+            <div className="grid md:grid-cols-2 gap-3">
+              <div>
+                <label className="block text-sm">Name</label>
+                <input value={invoiceCustomer.name} onChange={e=>setInvoiceCustomer(prev=>({...prev,name:e.target.value}))} placeholder="Name" className="p-2 border rounded w-full" />
+              </div>
+              <div>
+                <label className="block text-sm">Phone</label>
+                <input value={invoiceCustomer.phone} onChange={e=>setInvoiceCustomer(prev=>({...prev,phone:e.target.value}))} placeholder="Phone" className="p-2 border rounded w-full" />
+              </div>
+              <div>
+                <label className="block text-sm">Email</label>
+                <input value={invoiceCustomer.email} onChange={e=>setInvoiceCustomer(prev=>({...prev,email:e.target.value}))} placeholder="Email" className="p-2 border rounded w-full" />
+              </div>
+              <div className="md:col-span-2">
+                <label className="block text-sm">Address</label>
+                <textarea value={invoiceCustomer.address} onChange={e=>setInvoiceCustomer(prev=>({...prev,address:e.target.value}))} placeholder="Address" className="p-2 border rounded w-full" />
+              </div>
+            </div>
+
+            <h3 className="font-medium mt-4 mb-2">Items</h3>
+            {invoiceItems.map((item,index)=>(
+              <div key={index} className="grid grid-cols-12 gap-2 mb-2">
+                <div className="col-span-6">
+                  <label className="block text-sm">Item</label>
+                  <input value={item.title} onChange={e=>setInvoiceItems(prev=>prev.map((it,i)=>i===index?{...it,title:e.target.value}:it))} placeholder="Item" className="w-full p-2 border rounded" />
+                </div>
+                <div className="col-span-2">
+                  <label className="block text-sm">Qty</label>
+                  <input type="number" value={item.qty} onChange={e=>setInvoiceItems(prev=>prev.map((it,i)=>i===index?{...it,qty:Number(e.target.value)}:it))} className="w-full p-2 border rounded" />
+                </div>
+                <div className="col-span-3">
+                  <label className="block text-sm">Price</label>
+                  <input type="number" value={item.price} onChange={e=>setInvoiceItems(prev=>prev.map((it,i)=>i===index?{...it,price:Number(e.target.value)}:it))} placeholder="Price" className="w-full p-2 border rounded" />
+                </div>
+                <div className="col-span-1 flex items-end">
+                  <button type="button" onClick={()=>setInvoiceItems(prev=>prev.filter((_,i)=>i!==index))} className="px-2 py-1 border rounded text-sm">Remove</button>
+                </div>
+              </div>
+            ))}
+
+            <div className="flex items-center justify-between mt-2">
+              <div className="space-y-2">
+                <div>
+                  <label className="block text-sm">Discount</label>
+                  <input type="number" value={invoiceCustomer.discount} onChange={e=>setInvoiceCustomer(prev=>({...prev,discount:Number(e.target.value)}))} className="p-2 border rounded w-40" />
+                </div>
+                <div>
+                  <label className="block text-sm">Shipping</label>
+                  <input type="number" value={invoiceCustomer.shipping} onChange={e=>setInvoiceCustomer(prev=>({...prev,shipping:Number(e.target.value)}))} className="p-2 border rounded w-40" />
+                </div>
+              </div>
+              <div className="text-right">
+                <div className="text-sm">Subtotal: ₹{invoiceSubtotal.toFixed(2)}</div>
+                <div className="text-sm">Discount: ₹{(Number(invoiceCustomer.discount||0)).toFixed(2)}</div>
+                <div className="text-sm">Shipping: ₹{(Number(invoiceCustomer.shipping||0)).toFixed(2)}</div>
+                <div className="font-semibold">Total: ₹{(invoiceSubtotal - Number(invoiceCustomer.discount||0) + Number(invoiceCustomer.shipping||0)).toFixed(2)}</div>
+                <div className="mt-3 flex gap-2"><button type="button" onClick={()=>setInvoiceCustomer(null)} className="px-3 py-1 border rounded">Cancel</button><button type="button" onClick={saveCustomerInvoice} disabled={invoiceBusy} className="px-3 py-1 bg-blue-600 text-white rounded">{invoiceBusy ? 'Saving...' : 'Create invoice'}</button></div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

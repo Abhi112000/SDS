@@ -406,6 +406,44 @@ body {
   filter: saturate(1.08);
 }
 
+/* Modal & pop-form sizing: keep dialogs compact on small screens */
+.fixed.inset-0 > .bg-white {
+  max-width: 720px;
+  width: 100%;
+  padding: 1rem;
+  border-radius: 12px;
+  max-height: 88vh;
+  overflow: auto;
+}
+
+@media (max-width: 640px) {
+  .fixed.inset-0 > .bg-white {
+    padding: 0.75rem;
+    border-radius: 10px;
+    max-width: calc(100% - 2rem);
+    max-height: 86vh;
+  }
+}
+
+/* Consistent form input sizing */
+input, select, textarea, .form-field {
+  font-family: 'Inter', system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial;
+  font-size: 0.95rem;
+}
+
+/* Reduce extra vertical spacing in compact UI areas */
+.compact-gap > * + * { margin-top: 0.5rem; }
+
+.modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.28); display: flex; align-items: center; justify-content: center; z-index: 9999; }
+@media (max-width: 767px) { .modal-overlay { align-items: end; padding-bottom: 1rem; } }
+.modal-panel { background: white; border-radius: 12px; padding: 1rem; box-shadow: 0 18px 40px rgba(2,6,23,0.12); width: 100%; max-width: 560px; max-height: calc(100vh - 4rem); overflow: auto; margin: 0.5rem; transition: transform .18s ease, opacity .18s ease; }
+.modal-panel.smaller { max-width: 480px; padding: 0.75rem; border-radius: 10px; }
+.modal-panel.smooth-enter { transform: translateY(8px); opacity: 0; }
+.modal-panel.smooth-enter.smooth-enter-active { transform: translateY(0); opacity: 1; }
+.modal-panel.smooth-exit { transform: translateY(0); opacity: 1; }
+.modal-panel.smooth-exit.smooth-exit-active { transform: translateY(8px); opacity: 0; }
+
+
 .product-added-toast {
   margin-top: 0.50rem;
   font-size: 0.68rem;
@@ -1063,5 +1101,42 @@ body {
 .cart-item-card:hover {
   transform: translateY(-1px);
 }
+
+/* Global typography normalization: keep font family & sizes consistent */
+h1, h2, h3, h4 {
+  font-family: 'Inter', system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial;
+  color: var(--text);
+  margin: 0 0 0.5rem 0;
+}
+h1 { font-size: 1.5rem; line-height: 1.08; font-weight: 800; }
+h2 { font-size: 1.25rem; line-height: 1.12; font-weight: 700; }
+h3 { font-size: 1rem; line-height: 1.2; font-weight: 700; }
+h4 { font-size: 0.95rem; line-height: 1.2; font-weight: 700; }
+p { margin: 0 0 0.5rem 0; }
+
+/* Form label helper */
+.form-label { display:block; font-size:0.875rem; margin-bottom:0.35rem; color:var(--text-soft); font-weight:600; }
+
+/* Constrain modal / popover content on small screens so it doesn't fill whole viewport */
+.fixed.inset-0.z-50 > div,
+.fixed.inset-0.z-50 > .bg-white,
+.fixed.inset-0.z-50 .bg-white {
+  max-width: 920px;
+  width: calc(100% - 48px);
+  max-height: calc(100vh - 48px);
+  overflow: auto;
+  margin: 12px auto;
+  border-radius: 12px;
+}
+
+/* Reduce excessive paddings in small pop-forms */
+.fixed.inset-0.z-50 .p-6 { padding: 1rem; }
+.fixed.inset-0.z-50 .p-5 { padding: 0.9rem; }
+.fixed.inset-0.z-50 .p-4 { padding: 0.75rem; }
+
+/* Compact invoice helper styles */
+.invoice-compact { font-size: 13px; }
+.invoice-compact table td, .invoice-compact table th { padding: 6px; }
+
 
 

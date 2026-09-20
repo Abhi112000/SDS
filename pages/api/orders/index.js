@@ -6,6 +6,7 @@ import GuestOrder from '../../../models/GuestOrder';
 import pusher from "../../../lib/pusher";
 import { getSession } from "next-auth/react";
 import { getToken } from "next-auth/jwt";
+import Invoice from '@/models/Invoice';
 
 export default async function handler(req, res) {
   await dbConnect();
@@ -129,6 +130,22 @@ export default async function handler(req, res) {
     } catch (e) {
       console.warn("Pusher notify failed:", e?.message || e);
     }
+
+    // create an invoice record for this order so invoice ID matches order ID for easy reference
+    try{
+      const invoiceId = String(order._id);
+      const invDoc = await Invoice.create({
+        invoiceId,
+        type: 'order',
+        orderId: String(order._id),
+        payload: order,
+        subtotal: Number(subtotal || 0),
+        discount: Number(couponResult?.discountAmount || 0),
+        shipping: Number(deliveryChargeAmount || 0),
+        total: Number(totalAmount || 0),
+        createdBy: session?.user?.id || null
+      }).catch(()=>null);
+    }catch(e){ console.warn('create invoice on order failed', e?.message || e); }
 
     return res.status(201).json({ ok: true, orderId: order._id, couponApplied: !!couponResult });
   }

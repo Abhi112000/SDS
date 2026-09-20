@@ -204,8 +204,9 @@ export default function AdminInventory({ initial = [] }){
 
       {/* Edit modal */}
       {editingId && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
-          <div className="bg-white p-6 rounded shadow max-w-2xl w-full">
+        <div className="modal-overlay">
+          <div className="absolute inset-0" onClick={()=>setEditingId(null)} />
+          <div className="modal-panel compact-gap" style={{ maxWidth: '760px' }} onClick={(e)=>e.stopPropagation()}>
             <h3 className="text-lg font-semibold mb-3">Edit Item</h3>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
               <div>

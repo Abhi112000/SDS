@@ -10,6 +10,10 @@ export default function Cart() {
   const router = useRouter();
   const { cart, updateQty, remove, setCoupon, subtotal } = useContext(CartContext);
   const [open, setOpen] = useState(false);
+
+  useEffect(() => {
+    setOpen(false);
+  }, [router.asPath]);
   const [appliedCoupon, setAppliedCoupon] = useState(null);
   const [couponCode, setCouponCode] = useState("");
   const [couponMsg, setCouponMsg] = useState("");

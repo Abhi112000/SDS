@@ -28,6 +28,7 @@ const formatDate = (value) => {
 export default function Dashboard({ user, orders }) {
   const router = useRouter();
   const [orderList, setOrderList] = useState(orders || []);
+  const [invoiceLoadingById, setInvoiceLoadingById] = useState({});
   const toast = useToast();
 
   const adminWhatsApp = process.env.NEXT_PUBLIC_OWNER_WHATSAPP_NUMBER || '919818630972';
@@ -103,6 +104,37 @@ export default function Dashboard({ user, orders }) {
     }
   }, [user]);
 
+  const generateInvoiceForOrder = async (order) => {
+    if (!order?._id) return;
+    setInvoiceLoadingById(prev => ({ ...prev, [order._id]: true }));
+    try {
+      const res = await fetch('/api/admin/invoices', {
+        method: 'POST',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          type: 'order',
+          orderId: order._id,
+          payload: order,
+          subtotal: Number(order.subtotal || 0),
+          discount: Number(order.coupon?.discountAmount || 0),
+          shipping: Number(order.deliveryCharge || order.shipping || 0),
+          tax: Number(order.tax || 0),
+          total: Number(order.total || ((Number(order.subtotal || 0) - Number(order.coupon?.discountAmount || 0)) + Number(order.deliveryCharge || order.shipping || 0) + Number(order.tax || 0)))
+        })
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data?.error || 'Unable to generate invoice');
+      const invoiceId = data?.invoice?.invoiceId || data?.invoice?._id || order._id;
+      window.open(`/api/admin/invoices/print?id=${encodeURIComponent(invoiceId)}&public=1`, '_blank', 'noopener,noreferrer');
+      toast?.push?.({ message: 'Invoice generated successfully', type: 'success' });
+    } catch (error) {
+      toast?.push?.({ message: error.message || 'Unable to generate invoice', type: 'error' });
+    } finally {
+      setInvoiceLoadingById(prev => ({ ...prev, [order._id]: false }));
+    }
+  };
+
   return (
     <div className="p-6">
       <Breadcrumbs items={[{ label: 'Dashboard' }]} />
@@ -139,6 +171,11 @@ export default function Dashboard({ user, orders }) {
                 </div>
                 <div className="mt-4 flex flex-wrap gap-2">
                   <a href={`/orders/${o._id}`} className="px-3 py-1 bg-blue-600 text-white rounded">View details</a>
+                  {['delivered', 'completed'].includes(String(o.status || '').toLowerCase()) && (
+                    <button type="button" onClick={() => generateInvoiceForOrder(o)} disabled={!!invoiceLoadingById[o._id]} className="px-3 py-1 bg-green-600 text-white rounded disabled:opacity-60">
+                      {invoiceLoadingById[o._id] ? 'Generating...' : 'Generate invoice'}
+                    </button>
+                  )}
                   {o.status !== 'cancelled' && (
                     <a href={getWhatsAppHref(supportText)} target="_blank" rel="noreferrer" className={`px-3 py-1 rounded text-white ${isCancelable ? 'bg-red-600' : 'bg-orange-600'}`}>
                       {isCancelable ? 'Cancel order on WhatsApp' : 'Request cancel on WhatsApp'}

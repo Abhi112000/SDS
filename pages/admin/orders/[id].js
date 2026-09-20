@@ -15,10 +15,10 @@ export default function AdminOrderDetail({ initialOrder }){
   const [showInvoiceModal, setShowInvoiceModal] = useState(false);
   const [invoiceLoading, setInvoiceLoading] = useState(false);
   const [invoiceRecord, setInvoiceRecord] = useState(null);
-  const [invoiceForm, setInvoiceForm] = useState({ status: 'unpaid', paidAmount: 0, balance: 0 });
+  const [invoiceForm, setInvoiceForm] = useState({ status: 'unpaid', paidAmount: 0, balance: 0, discount: 0, shipping: 0 });
   const [printing, setPrinting] = useState(false);
   const [sendingInvoice, setSendingInvoice] = useState(false);
-  const statusOptions = ['new', 'processing', 'shipped', 'delivered', 'cancelled'];
+  const statusOptions = ['new', 'processing', 'shipped', 'delivered', 'completed', 'cancelled'];
   const toast = useToast();
 
   const formatDateTime = value => {
@@ -113,6 +113,20 @@ export default function AdminOrderDetail({ initialOrder }){
                 toast?.push?.({ message: 'Order status updated', type: 'success' });
                 const text = buildOrderWhatsappSummary(data.order, `Hello ${data.order.name || data.order.customerName || 'Customer'},\nYour order status has been updated to ${data.order.status}.\n\nOrder details:`);
                 openCustomerWhatsApp(text);
+                // If order has moved to delivered/completed, ensure an invoice exists with matching ID
+                try{
+                  if(['delivered', 'completed'].includes(data.order.status)){
+                    const invRes = await fetch('/api/admin/invoices', { credentials: 'include' });
+                    const invBody = await invRes.json().catch(()=>({}));
+                    const existing = (invBody.invoices || []).find(i => i.orderId === data.order._id) || null;
+                    if(!existing){
+                      const couponDisc = (data.order.coupon && data.order.coupon.discountAmount) || 0;
+                      const shipping = Number(data.order.deliveryCharge || data.order.shipping || 0);
+                      const invoiceId = String(data.order._id);
+                      await fetch('/api/admin/invoices', { method: 'POST', credentials: 'include', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ invoiceId, type: 'order', orderId: data.order._id, payload: data.order, subtotal: data.order.subtotal || 0, discount: couponDisc, shipping, total: data.order.total || ((data.order.subtotal||0) - couponDisc + shipping) }) });
+                    }
+                  }
+                }catch(e){ console.warn('ensure invoice on delivered/completed failed', e?.message || e); }
               }
             }catch(e){
               console.error('status update error', e);
@@ -138,8 +152,8 @@ export default function AdminOrderDetail({ initialOrder }){
               // create invoice on-the-fly
               const couponDisc = (order.coupon && order.coupon.discountAmount) || 0;
               const total = (order.subtotal || 0) - couponDisc;
-              const invoiceId = `INV-${Date.now()}`;
-              const createRes = await fetch('/api/admin/invoices', { method: 'POST', credentials: 'include', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ invoiceId, type: 'order', orderId: order._id, payload: order, subtotal: order.subtotal || 0, discount: couponDisc, total }) });
+              const invoiceId = new Date().toISOString().replace(/[-:T.]/g, '').slice(0, 14);
+              const createRes = await fetch('/api/admin/invoices', { method: 'POST', credentials: 'include', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ invoiceId: `INV-${invoiceId}`, type: 'order', orderId: order._id, payload: order, subtotal: order.subtotal || 0, discount: couponDisc, total }) });
               const created = await createRes.json().catch(()=>null);
               invToUse = created && created.invoice ? created.invoice : null;
             }
@@ -148,10 +162,10 @@ export default function AdminOrderDetail({ initialOrder }){
             const invSettings = settingsBody || {};
             const itemsHtml = (order.items || []).map(it => `<tr><td style="padding:8px;border:1px solid #ddd">${(it.title||'Item')}</td><td style="padding:8px;border:1px solid #ddd;text-align:center">${it.qty||1}</td><td style="padding:8px;border:1px solid #ddd;text-align:right">₹${(Number(it.price)||0).toFixed(2)}</td><td style="padding:8px;border:1px solid #ddd;text-align:right">₹${((Number(it.price)||0)*(Number(it.qty)||1)).toFixed(2)}</td></tr>`).join('');
             const subtotal = Number(order.subtotal || 0).toFixed(2);
-            const discountVal = Number(order.coupon?.discountAmount || 0).toFixed(2);
-            const shipping = Number(order.shipping || 0).toFixed(2);
+            const discountVal = Number(invoiceForm.discount || order.coupon?.discountAmount || 0).toFixed(2);
+            const shipping = Number(invoiceForm.shipping ?? order.shipping ?? 0).toFixed(2);
             const tax = Number(order.tax || 0).toFixed(2);
-            const total = Number(order.total || ((order.subtotal||0) - (order.coupon?.discountAmount||0))).toFixed(2);
+            const total = Number(order.total ?? ((Number(subtotal) - Number(discountVal)) + Number(shipping) + Number(tax))).toFixed(2);
             const status = invToUse?.status || invoiceForm.status || 'unpaid';
             const paidAmount = Number(invToUse?.paidAmount ?? invoiceForm.paidAmount ?? 0).toFixed(2);
             const balance = Number(invToUse?.balance ?? invoiceForm.balance ?? (Number(total) - Number(paidAmount))).toFixed(2);
@@ -163,44 +177,51 @@ export default function AdminOrderDetail({ initialOrder }){
     <head>
       <meta charset="utf-8">
       <title>Invoice ${invToUse?.invoiceId || order._id}</title>
+      <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700&display=swap" rel="stylesheet">
       <style>
-        body{font-family:Arial,Helvetica,sans-serif;color:#222;margin:0;padding:24px;background:#fff}
-        .container{max-width:900px;margin:0 auto;padding:24px;border:1px solid #f0f0f0}
-        .header{display:flex;justify-content:space-between;align-items:center}
-        .brand{font-size:20px;font-weight:700}
-        .muted{color:#666;font-size:12px}
-        table{width:100%;border-collapse:collapse;margin-top:12px}
-        th,td{padding:10px;border:1px solid #eee}
+        body{font-family:Inter, Arial,Helvetica,sans-serif;color:#111;margin:0;padding:18px;background:#fff;font-size:13px}
+        .container{max-width:800px;margin:0 auto;padding:16px;border:1px solid #f3f3f3}
+        .invoice-header{display:flex;justify-content:space-between;align-items:flex-start;gap:24px;padding:4px 2px 10px;page-break-inside:avoid}
+        .brand-block{display:flex;align-items:flex-start;gap:12px;flex:1;min-width:0}
+        .logo{max-height:72px;max-width:72px;object-fit:contain;border-radius:4px;flex-shrink:0}
+        .shop-meta{min-width:0}
+        .brand{font-size:20px;font-weight:700;line-height:1.3;margin:0 0 4px;color:#111}
+        .muted{color:#555;font-size:12px;line-height:1.5}
+        .invoice-meta{min-width:180px;text-align:right;flex-shrink:0;position:relative}
+        .invoice-title{font-size:16px;font-weight:700;line-height:1.2;margin:0 0 6px;color:#111}
+        .invoice-meta-line{color:#555;font-size:12px;line-height:1.6}
+        .divider{border:none;border-top:1px solid #e5e7eb;margin:0 0 12px}
+        table{width:100%;border-collapse:collapse;margin-top:10px}
+        th,td{padding:8px;border:1px solid #eee;font-size:13px}
         th{background:#fafafa;text-align:left}
         .right{text-align:right}
-        .summary{width:360px;margin-left:auto}
-        .logo{max-height:80px;max-width:220px;object-fit:contain;border-radius:4px}
-        .watermark{position:fixed;top:40%;left:50%;transform:translate(-50%,-50%) rotate(-30deg);font-size:80px;color:rgba(0,0,0,0.04);pointer-events:none;user-select:none}
-        .note{font-size:12px;color:#444;margin-top:18px}
-        .footer{margin-top:28px;font-size:12px;color:#666}
+        .summary{width:320px;margin-left:auto}
+        .watermark{position:fixed;top:48%;left:50%;transform:translate(-50%,-50%) rotate(-30deg);font-size:48px;color:rgba(0,0,0,0.04);pointer-events:none;user-select:none}
+        .note{font-size:12px;color:#444;margin-top:12px}
+        .footer{margin-top:18px;font-size:12px;color:#666}
       </style>
     </head>
     <body>
   <div class="watermark">${invSettings?.watermarkText || 'SD Stationary invoice'}</div>
-      <div class="container">
-        <div class="header">
-          <div style="display:flex;align-items:center;gap:12px">
+      <div class="container invoice-compact">
+        <div class="invoice-header">
+          <div class="brand-block">
             <img src="/images/logo.jpeg" class="logo" alt="logo" />
-            <div>
+            <div class="shop-meta">
               <div class="brand">${invSettings?.brandName || 'Shree Durga Stationary'}</div>
-              <div class="muted">${invSettings?.address || ''}</div>
-              <div class="muted">Phone: ${invSettings?.phone || ''} | Email: ${invSettings?.email || ''}</div>
+              <div class="muted">${invSettings?.address || 'New Friends Colony, Sanjay Nagar, Sector 23, Ghaziabad, Uttar Pradesh'}</div>
+              <div class="muted">Phone: ${invSettings?.phone || '9818630972'} | Email: ${invSettings?.email || 'contact.sdstationary@gmail.com'}</div>
             </div>
           </div>
-          <div style="text-align:right;position:relative;min-width:220px">
+          <div class="invoice-meta">
             ${stampHtml}
-            <div style="font-size:14px;font-weight:700">Invoice</div>
-            <div class="muted">Invoice ID: ${invToUse?.invoiceId || order._id}</div>
-            <div class="muted">Date: ${new Date(order.createdAt).toLocaleString()}</div>
+            <div class="invoice-title">Invoice</div>
+            <div class="invoice-meta-line">Invoice ID: ${invToUse?.invoiceId || order._id}</div>
+            <div class="invoice-meta-line">Date: ${new Date(order.createdAt).toLocaleString()}</div>
           </div>
         </div>
 
-        <hr style="border:none;border-top:1px solid #eee;margin:16px 0" />
+        <hr class="divider" />
 
         <div>
           <div style="display:flex;justify-content:space-between;gap:12px;align-items:flex-start">
@@ -214,14 +235,14 @@ export default function AdminOrderDetail({ initialOrder }){
           </div>
         </div>
 
-        <h3 style="margin-top:18px">Items</h3>
+        <h3 style="margin-top:12px">Items</h3>
         <table>
           <thead>
             <tr>
               <th>Product</th>
-              <th style="width:90px;text-align:center">Qty</th>
-              <th style="width:140px;text-align:right">Unit</th>
-              <th style="width:160px;text-align:right">Line Total</th>
+              <th style="width:80px;text-align:center">Qty</th>
+              <th style="width:120px;text-align:right">Unit</th>
+              <th style="width:140px;text-align:right">Line Total</th>
             </tr>
           </thead>
           <tbody>
@@ -230,7 +251,7 @@ export default function AdminOrderDetail({ initialOrder }){
         </table>
 
         <div class="summary">
-          <table style="border:none;margin-top:12px">
+          <table style="border:none;margin-top:8px">
             <tbody>
               <tr><td class="muted" style="border:none;padding:6px">Subtotal</td><td class="right" style="border:none;padding:6px">₹${subtotal}</td></tr>
               <tr><td class="muted" style="border:none;padding:6px">Discount</td><td class="right" style="border:none;padding:6px">- ₹${discountVal}</td></tr>
@@ -249,7 +270,7 @@ export default function AdminOrderDetail({ initialOrder }){
 
         <div class="footer">
           <div>Authorized by: ${invSettings?.brandName || 'Shree Durga Stationary'}</div>
-          <div style="margin-top:6px;color:#999;font-size:12px">For any queries, contact ${invSettings?.phone || ''} or ${invSettings?.email || ''}</div>
+          <div style="margin-top:6px;color:#999;font-size:12px">For any queries, contact +91-9818630972 or contact.sdstationary@gmail.com</div>
         </div>
       </div>
     </body>
@@ -272,8 +293,8 @@ export default function AdminOrderDetail({ initialOrder }){
             if(!invToUse){
               const couponDisc = (order.coupon && order.coupon.discountAmount) || 0;
               const total = (order.subtotal || 0) - couponDisc;
-              const invoiceId = `INV-${Date.now()}`;
-              const createRes = await fetch('/api/admin/invoices', { method: 'POST', credentials: 'include', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ invoiceId, type: 'order', orderId: order._id, payload: order, subtotal: order.subtotal || 0, discount: couponDisc, total }) });
+              const invoiceId = new Date().toISOString().replace(/[-:T.]/g, '').slice(0, 14);
+              const createRes = await fetch('/api/admin/invoices', { method: 'POST', credentials: 'include', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ invoiceId: `INV-${invoiceId}`, type: 'order', orderId: order._id, payload: order, subtotal: order.subtotal || 0, discount: couponDisc, total }) });
               const created = await createRes.json().catch(()=>null);
               invToUse = created && created.invoice ? created.invoice : null;
             }
@@ -292,8 +313,8 @@ export default function AdminOrderDetail({ initialOrder }){
       </div>
 
       {showInvoiceModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
-          <div className="bg-white p-6 rounded shadow max-w-md w-full">
+        <div className="modal-overlay" onClick={(e)=>{ if(e.target === e.currentTarget) setShowInvoiceModal(false); }}>
+          <div className="modal-panel compact-gap" onClick={(e)=>e.stopPropagation()}>
             <h3 className="text-lg font-semibold mb-3">Update invoice status</h3>
             {invoiceLoading ? <div>Loading…</div> : (
               <div className="space-y-3">
@@ -306,10 +327,21 @@ export default function AdminOrderDetail({ initialOrder }){
                   </select>
                 </div>
                 <div>
+                  <label className="block text-sm">Discount</label>
+                  <input type="number" value={invoiceForm.discount} onChange={(e)=>setInvoiceForm(s=>({...s, discount: Number(e.target.value || 0)}))} className="mt-1 w-full border p-2 rounded" />
+                </div>
+                <div>
+                  <label className="block text-sm">Shipping</label>
+                  <input type="number" value={invoiceForm.shipping} onChange={(e)=>setInvoiceForm(s=>({...s, shipping: Number(e.target.value || 0)}))} className="mt-1 w-full border p-2 rounded" />
+                </div>
+                <div>
                   <label className="block text-sm">Paid amount</label>
                   <input type="number" value={invoiceForm.paidAmount} onChange={(e)=>{
-                    const paid = parseFloat(e.target.value) || 0; const total = ((order.subtotal||0) - ((order.coupon && order.coupon.discountAmount)||0));
-                    setInvoiceForm(s=>({ ...s, paidAmount: paid, balance: Math.max(0, total - paid) }));
+                    const paid = parseFloat(e.target.value) || 0;
+                    const discountNow = Number(invoiceForm.discount || (order.coupon && order.coupon.discountAmount) || 0);
+                    const shippingNow = Number(invoiceForm.shipping || order.shipping || 0);
+                    const totalNow = Math.max(0, (Number(order.subtotal || 0) - discountNow) + shippingNow);
+                    setInvoiceForm(s=>({ ...s, paidAmount: paid, balance: Math.max(0, totalNow - paid) }));
                   }} className="mt-1 w-full border p-2 rounded" />
                 </div>
                 <div>
@@ -322,7 +354,9 @@ export default function AdminOrderDetail({ initialOrder }){
                     // submit update or create with validation
                     try{
                       const couponDisc = (order.coupon && order.coupon.discountAmount) || 0;
-                      const total = Number((invoiceRecord && invoiceRecord.total) || ((order.subtotal || 0) - couponDisc) || 0);
+                      const discountToSave = Number(invoiceForm.discount || couponDisc || 0);
+                      const shippingToSave = Number(invoiceForm.shipping ?? order.shipping ?? 0);
+                      const total = Number((invoiceRecord && invoiceRecord.total) || ((order.subtotal || 0) - discountToSave + shippingToSave) || 0);
                       const paid = Number(invoiceForm.paidAmount || 0);
                       if(paid < 0){ toast?.push?.({ message: 'Paid amount cannot be negative', type: 'error' }); return; }
                       if(paid > total){ toast?.push?.({ message: 'Paid amount cannot exceed total payable', type: 'error' }); return; }
@@ -331,14 +365,14 @@ export default function AdminOrderDetail({ initialOrder }){
                       if(paid >= total) statusToSave = 'paid';
                       else if(paid > 0 && paid < total) statusToSave = 'partially-paid';
 
-                      const payload = { status: statusToSave, paidAmount: paid, balance: Number(invoiceForm.balance || Math.max(0, total - paid)) };
+                      const payload = { status: statusToSave, paidAmount: paid, balance: Number(invoiceForm.balance || Math.max(0, total - paid)), discount: discountToSave, shipping: shippingToSave };
                       let res, data;
                       if(invoiceRecord && invoiceRecord._id){
                         res = await fetch('/api/admin/invoices', { method: 'PUT', credentials: 'include', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id: invoiceRecord._id, ...payload }) });
                         data = await res.json();
                       } else {
-                        const invoiceId = `INV-${Date.now()}`;
-                        res = await fetch('/api/admin/invoices', { method: 'POST', credentials: 'include', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ invoiceId, type: 'order', orderId: order._id, payload: order, subtotal: order.subtotal || 0, discount: couponDisc, total, ...payload }) });
+                        const invoiceId = new Date().toISOString().replace(/[-:T.]/g, '').slice(0, 14);
+                        res = await fetch('/api/admin/invoices', { method: 'POST', credentials: 'include', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ invoiceId: `INV-${invoiceId}`, type: 'order', orderId: order._id, payload: order, subtotal: order.subtotal || 0, discount: discountToSave, shipping: shippingToSave, total, ...payload }) });
                         data = await res.json();
                       }
                       if(res && res.ok){

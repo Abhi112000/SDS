@@ -30,6 +30,11 @@ export default async function handler(req,res){
   if(req.method === 'POST'){
     const body = req.body;
     if(body.code) body.code = body.code.toUpperCase();
+    // sanitize allowedUserIds
+    if(body.allowedUserIds && !Array.isArray(body.allowedUserIds)){
+      if(typeof body.allowedUserIds === 'string') body.allowedUserIds = body.allowedUserIds.split(',').map(s=>s.trim()).filter(Boolean);
+      else body.allowedUserIds = [];
+    }
     const c = await Coupon.create(body);
     return res.status(201).json({ ok:true, coupon: c });
   }

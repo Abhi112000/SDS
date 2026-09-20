@@ -39,10 +39,12 @@ export default function Admin({ dbError = false, errorMessage = '' }){
   const productsList = Array.isArray(productsListRaw) ? productsListRaw : (productsListRaw && productsListRaw.products) || [];
   const { data: invoices, mutate: mutateInvoices } = useSWR('/api/admin/invoices', fetcher);
   const { data: invoiceSettings, mutate: mutateInvoiceSettings } = useSWR('/api/admin/invoice-settings', fetcher);
+  const { data: visitorStats, mutate: mutateVisitorStats } = useSWR('/api/admin/visitors', fetcher);
   const [selectedInvoice, setSelectedInvoice] = useState(null);
   const [expandedOrders, setExpandedOrders] = useState({});
   const [settingsDraft, setSettingsDraft] = useState(null);
   const [settingsBusy, setSettingsBusy] = useState(false);
+  const [visitorBusy, setVisitorBusy] = useState(false);
 
   useEffect(()=>{
     if(invoiceSettings) setSettingsDraft(invoiceSettings);
@@ -59,6 +61,44 @@ export default function Admin({ dbError = false, errorMessage = '' }){
       setSettingsBusy(false);
       toast?.push?.({ message: 'Invoice settings saved', type: 'success' });
     }catch(e){ setSettingsBusy(false); toast?.push?.({ message: 'Save failed: ' + (e.message || 'error'), type: 'error' }); }
+  }
+
+  async function toggleVisitorTracking() {
+    if (!visitorStats) return;
+    setVisitorBusy(true);
+    try {
+      const nextEnabled = !visitorStats.enabled;
+      const res = await fetch('/api/admin/visitors', {
+        method: 'PUT',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ enabled: nextEnabled })
+      });
+      const body = await res.json();
+      if (!res.ok) throw new Error(body?.error || 'Toggle failed');
+      mutateVisitorStats();
+      toast?.push?.({ message: nextEnabled ? 'Live visitor count enabled' : 'Live visitor count paused', type: 'success' });
+    } catch (error) {
+      toast?.push?.({ message: error.message || 'Could not update visitor settings', type: 'error' });
+    } finally {
+      setVisitorBusy(false);
+    }
+  }
+
+  async function deleteVisitorDate(date) {
+    if (!date || !confirm(`Delete all visitor activity for ${date}?`)) return;
+    try {
+      const res = await fetch(`/api/admin/visitors?date=${encodeURIComponent(date)}`, {
+        method: 'DELETE',
+        credentials: 'include'
+      });
+      const body = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(body?.error || 'Delete failed');
+      mutateVisitorStats();
+      toast?.push?.({ message: `Deleted visitor records for ${date}`, type: 'success' });
+    } catch (error) {
+      toast?.push?.({ message: error.message || 'Could not delete visitor record', type: 'error' });
+    }
   }
   const { data: session, status } = useSession();
   const toast = useToast();
@@ -176,12 +216,17 @@ export default function Admin({ dbError = false, errorMessage = '' }){
   function updateInvItem(idx, patch){ setInvItems(prev => prev.map((it,i)=> i===idx ? { ...it, ...patch } : it)); }
   function removeInvItem(idx){ setInvItems(prev => prev.filter((_,i)=> i!==idx)); }
 
+  function buildInvoiceId(){
+    const ts = new Date();
+    return `INV-${ts.toISOString().replace(/[-:T.]/g, '').slice(0, 14)}`;
+  }
+
   function openInvoicePanel(){ setInvoiceOpen(true); }
   function closeInvoicePanel(){ setInvoiceOpen(false); }
 
   function downloadInvoiceFromState(){
     const order = {
-      _id: `INV-${Date.now()}`,
+      _id: buildInvoiceId(),
       name: invName,
       phone: invPhone,
       email: invEmail,
@@ -324,7 +369,7 @@ export default function Admin({ dbError = false, errorMessage = '' }){
         <AdminSidebar />
         <main className="md:col-span-3">
           <div className="flex items-center justify-between mb-4">
-            <h1 className="text-2xl font-bold">Admin Dashboard</h1>
+            <h1 className="text-2xl font-bold">Dashboard</h1>
             <div className="space-x-2">
               <a href="/admin/products" className="px-3 py-1 bg-gray-100 rounded">Products</a>
               <a href="/admin/coupons" className="px-3 py-1 bg-gray-100 rounded">Coupons</a>
@@ -332,6 +377,16 @@ export default function Admin({ dbError = false, errorMessage = '' }){
               <a href="/admin/categories" className="px-3 py-1 bg-gray-100 rounded">Categories</a>
             </div>
           </div>
+
+          <section className="mb-6">
+            <h2 className="text-lg font-semibold mb-2">Profile</h2>
+            <div className="bg-white p-4 rounded shadow max-w-xl">
+              <p><strong>Name:</strong> {session?.user?.name || '-'}</p>
+              <p><strong>Email:</strong> {session?.user?.email || '-'}</p>
+              <p><strong>Phone:</strong> {session?.user?.phone || '-'}</p>
+              <p><strong>Address:</strong> {session?.user?.address || '-'}</p>
+            </div>
+          </section>
       {/* Quick add removed — use /admin/products for full product creation */}
       <div className="grid grid-cols-4 gap-4 mb-6">
         <div className="bg-white p-4 rounded shadow">Total Orders: {Array.isArray(orders) ? orders.length : (analytics?.orders ?? '-')}</div>
@@ -353,37 +408,114 @@ export default function Admin({ dbError = false, errorMessage = '' }){
         </div>
       </div>
 
-      <section className="grid md:grid-cols-2 gap-6">
+      <section className="mb-6">
         <div className="bg-white p-4 rounded shadow">
-          <div className="flex items-center justify-between mb-2">
-            <h3 className="font-semibold">Contact messages</h3>
-            <Link href="/admin/messages" className="text-sm text-blue-600">Manage messages</Link>
+          <div className="flex items-center justify-between gap-3">
+            <h2 className="text-base font-semibold text-gray-800">Messages</h2>
+            <Link href="/admin/messages" className="text-sm text-blue-600 hover:underline">Open inbox</Link>
           </div>
-          <ul>
-            {messages?.filter(m => (m.type || 'contact') === 'contact').slice(0,5).map(m=> (
-              <li key={m._id} className="py-2 border-b">
-                <Link href="/admin/messages" className="block hover:underline text-sm"><span className="font-medium">{m.fromName || 'Visitor'}</span> • {m.subject || 'Contact enquiry'}{!m.read && <span className="ml-2 text-xs text-blue-600">New</span>}<div className="mt-1 text-xs text-gray-500 line-clamp-2">{m.text}</div></Link>
-              </li>
+
+          <div className="mt-4 grid sm:grid-cols-2 xl:grid-cols-4 gap-3">
+            {[
+              { label: 'Contact', key: 'contact', count: messages?.filter(m => (m.type || 'contact') === 'contact' && !m.read).length || 0 },
+              { label: 'Feedback', key: 'feedback', count: messages?.filter(m => m.type === 'feedback' && !m.read).length || 0 },
+              { label: 'Support', key: 'support', count: messages?.filter(m => m.type === 'support' && !m.read).length || 0 },
+              { label: 'Suggestions', key: 'suggestion-request', count: messages?.filter(m => (m.type === 'suggestion-request' || m.type === 'update-request') && !m.read).length || 0 }
+            ].map((item) => (
+              <div key={item.key} className="rounded-lg border border-slate-200 bg-slate-50 p-3">
+                <div className="text-[10px] font-bold uppercase tracking-[0.16em] text-slate-500">{item.label}</div>
+                <div className="mt-2 text-2xl font-bold text-slate-900">{item.count}</div>
+                <div className="text-[11px] text-slate-500">Unread</div>
+              </div>
             ))}
-          </ul>
+          </div>
         </div>
+      </section>
+
+      <section className="mb-6">
         <div className="bg-white p-4 rounded shadow">
-          <div className="flex items-center justify-between mb-2">
-            <h3 className="font-semibold">Feedback & update requests</h3>
-            <Link href="/admin/messages" className="text-sm text-blue-600">Open inbox</Link>
+          <div className="flex items-center justify-between gap-3 mb-3">
+            <div>
+              <h2 className="text-base font-semibold text-gray-800">Live visitors</h2>
+              <p className="text-xs text-gray-500">Count of active users and guests on your website</p>
+            </div>
+            <button
+              type="button"
+              onClick={toggleVisitorTracking}
+              disabled={visitorBusy || !visitorStats}
+              className={`rounded-full px-3 py-1 text-sm font-medium ${visitorStats?.enabled ? 'bg-green-100 text-green-700' : 'bg-slate-200 text-slate-700'}`}
+            >
+              {visitorBusy ? 'Updating...' : (visitorStats?.enabled ? 'Enabled' : 'Disabled')}
+            </button>
           </div>
-          <ul>
-            {messages?.filter(m => ['feedback', 'update-request', 'support'].includes(m.type)).slice(0,5).map(m=> (
-              <li key={m._id} className="py-2 border-b"><Link href="/admin/messages" className="block hover:underline text-sm"><span className="font-medium">{m.fromName || 'Customer'}</span> • {m.type === 'update-request' ? 'Product update request' : m.type === 'feedback' ? 'Feedback' : 'Support request'}{!m.read && <span className="ml-2 text-xs text-blue-600">New</span>}<div className="mt-1 text-xs text-gray-500 line-clamp-2">{m.text}</div></Link></li>
-            ))}
-          </ul>
+
+          <div className="grid sm:grid-cols-2 xl:grid-cols-5 gap-3">
+            <div className="rounded-lg border border-red-200 bg-red-50 p-3">
+              <div className="text-[10px] font-bold uppercase tracking-[0.16em] text-red-700">Live</div>
+              <div className="mt-2 text-3xl font-bold text-red-700">{visitorStats?.count ?? 0}</div>
+              <div className="text-[11px] text-red-600">Online now</div>
+            </div>
+            <div className="rounded-lg border border-slate-200 bg-slate-50 p-3"><div className="text-[10px] uppercase tracking-[0.16em] text-slate-500">Desktop</div><div className="mt-2 text-2xl font-bold text-slate-900">{visitorStats?.summary?.desktop ?? 0}</div></div>
+            <div className="rounded-lg border border-slate-200 bg-slate-50 p-3"><div className="text-[10px] uppercase tracking-[0.16em] text-slate-500">Laptop</div><div className="mt-2 text-2xl font-bold text-slate-900">{visitorStats?.summary?.laptop ?? 0}</div></div>
+            <div className="rounded-lg border border-slate-200 bg-slate-50 p-3"><div className="text-[10px] uppercase tracking-[0.16em] text-slate-500">Phone</div><div className="mt-2 text-2xl font-bold text-slate-900">{visitorStats?.summary?.phone ?? 0}</div></div>
+            <div className="rounded-lg border border-slate-200 bg-slate-50 p-3"><div className="text-[10px] uppercase tracking-[0.16em] text-slate-500">Tablet</div><div className="mt-2 text-2xl font-bold text-slate-900">{visitorStats?.summary?.tablet ?? 0}</div></div>
+          </div>
+
+          <div className="mt-4">
+            <h3 className="text-sm font-semibold text-gray-700 mb-2">Date-wise activity</h3>
+            <div className="space-y-3">
+              {Object.entries(visitorStats?.historyByDate || {}).sort(([a], [b]) => b.localeCompare(a)).map(([date, entries]) => (
+                <div key={date} className="rounded border border-slate-200 bg-slate-50 p-3">
+                  <div className="flex items-center justify-between gap-3">
+                    <div className="font-semibold text-slate-800">{new Date(`${date}T00:00:00`).toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' })}</div>
+                    <button
+                      type="button"
+                      onClick={() => deleteVisitorDate(date)}
+                      className="rounded border border-red-200 bg-white px-2 py-1 text-[11px] font-medium text-red-600"
+                    >
+                      Delete
+                    </button>
+                  </div>
+
+                  <div className="mt-3 space-y-2">
+                    {(entries || []).slice(0, 10).map((entry, idx) => {
+                      const name = entry.userName || entry.email || entry.userLabel || 'Guest';
+                      return (
+                        <div key={`${date}-${entry._id || idx}`} className="rounded border border-slate-200 bg-white p-2">
+                          <div className="flex items-center justify-between gap-2">
+                            <div className="font-medium text-slate-800">{name}</div>
+                            <div className="text-[10px] uppercase tracking-[0.12em] text-slate-500">{entry.deviceType || 'unknown'}</div>
+                          </div>
+                          <div className="mt-1 text-[11px] text-slate-500">{entry.page || '/'} • {entry.lastSeenAt ? new Date(entry.lastSeenAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '-'}</div>
+                          <div className="mt-1 text-[10px] uppercase tracking-[0.12em] text-indigo-600">{(entry.pageHistory || []).slice(-1)[0]?.action || 'visit'}</div>
+                          {(entry.pageHistory || []).length > 0 && (
+                            <ul className="mt-2 list-disc pl-4 text-[11px] text-slate-600">
+                              {entry.pageHistory.slice(-5).reverse().map((hit, i) => (
+                                <li key={`${date}-${entry._id || idx}-${i}`}>
+                                  {hit.action || 'visit'}: {hit.title || hit.path || '/'} {hit.searchTerm ? `(${hit.searchTerm})` : ''}
+                                </li>
+                              ))}
+                            </ul>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              ))}
+
+              {Object.keys(visitorStats?.historyByDate || {}).length === 0 && (
+                <div className="rounded border border-dashed border-slate-200 p-3 text-sm text-slate-500">No visitor activity recorded yet.</div>
+              )}
+            </div>
+          </div>
         </div>
       </section>
 
       {/* Invoice modal/form */}
       {invoiceOpen && (
-        <div className="fixed inset-0 bg-black/40 flex items-start justify-center z-50 p-6 overflow-auto">
-          <div className="bg-white p-4 rounded max-w-3xl w-full">
+        <div className="modal-overlay" onClick={(e)=>{ if(e.target === e.currentTarget) closeInvoicePanel(); }}>
+          <div className="modal-panel compact-gap" style={{ maxWidth: '900px' }} onClick={(e)=>e.stopPropagation()}>
             <div className="flex items-center justify-between mb-3">
               <h3 className="font-semibold">New Invoice</h3>
               <div className="flex items-center gap-2">
@@ -468,8 +600,8 @@ export default function Admin({ dbError = false, errorMessage = '' }){
       )}
       {/* Modal for selected guest order details */}
       {selectedOrder && (
-        <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
-          <div className="bg-white p-4 rounded max-w-2xl w-full">
+        <div className="modal-overlay" onClick={(e)=>{ if(e.target === e.currentTarget) setSelectedOrder(null); }}>
+          <div className="modal-panel compact-gap" style={{ maxWidth: '720px' }} onClick={(e)=>e.stopPropagation()}>
             <div className="flex justify-between items-center mb-2">
               <h4 className="font-semibold">Order Details</h4>
               <button onClick={() => setSelectedOrder(null)} className="text-gray-600">Close</button>
@@ -549,8 +681,8 @@ export default function Admin({ dbError = false, errorMessage = '' }){
 
       {/* Modal to view saved invoice from history */}
       {selectedInvoice && (
-        <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
-          <div className="bg-white p-4 rounded max-w-3xl w-full">
+        <div className="modal-overlay" onClick={(e)=>{ if(e.target === e.currentTarget) setSelectedInvoice(null); }}>
+          <div className="modal-panel compact-gap" style={{ maxWidth: '900px' }} onClick={(e)=>e.stopPropagation()}>
             <div className="flex justify-between items-center mb-2">
               <h4 className="font-semibold">Invoice {selectedInvoice.invoiceId}</h4>
               <button onClick={() => setSelectedInvoice(null)} className="text-gray-600">Close</button>

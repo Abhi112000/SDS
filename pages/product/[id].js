@@ -153,7 +153,7 @@ export default function ProductPage({ product }){
       </div>
       {showGallery && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-75">
-          <div className="relative max-w-4xl w-full mx-4">
+          <div className="relative max-w-4xl w-full mx-4 compact-gap">
             <button onClick={()=>setShowGallery(false)} className="absolute top-2 right-2 text-white bg-black bg-opacity-50 rounded px-3 py-1">Close</button>
             <div className="flex items-center">
               <button onClick={()=>setGalleryIndex(i=> (i - 1 + imgs.length) % imgs.length)} className="text-white px-3">◀</button>

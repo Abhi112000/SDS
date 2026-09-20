@@ -43,6 +43,7 @@ export default async function handler(req,res){
       const { subject, text, orderId, name, email, phone, address, targetUserId, targetEmail, type } = req.body || {};
       if (!text || !String(text).trim()) return res.status(400).json({ error: 'Message text is required' });
       const isAdmin = session?.user?.role === 'admin';
+      const normalizedType = type === 'update-request' ? 'suggestion-request' : (type === 'suggestion-request' ? 'suggestion-request' : ['contact', 'feedback', 'support'].includes(type) ? type : 'support');
       const message = await Message.create({
         fromUserId: isAdmin ? null : session?.user?.id || null,
         fromName: isAdmin ? (session?.user?.name || 'Support') : (session?.user?.name || name || 'Website visitor'),
@@ -53,7 +54,7 @@ export default async function handler(req,res){
         fromAddress: address || '',
         subject: subject || 'Customer message',
         text: String(text).trim(),
-        type: ['contact', 'feedback', 'update-request', 'support'].includes(type) ? type : 'support',
+        type: normalizedType,
         orderId
       });
       try{ await pusher.trigger('admin-channel', 'new-message', { messageId: message._id, subject: message.subject, fromName: message.fromName }); }catch(e){ console.warn('pusher notify admin failed', e?.message || e); }
@@ -64,6 +65,21 @@ export default async function handler(req,res){
     } catch (error) {
       console.error('message create failed:', error?.message || error);
       return res.status(500).json({ error: 'Unable to save message. Please try again.' });
+    }
+  }
+  if(req.method === 'DELETE'){
+    try {
+      const session = await getServerSession(req, res, authOptions).catch(() => null);
+      const role = session?.user?.role;
+      if(!session || role !== 'admin') return res.status(403).json({ error: 'admin required' });
+      const { id } = req.query || {};
+      if(!id) return res.status(400).json({ error: 'Message id required' });
+      const deleted = await Message.findByIdAndDelete(id).lean();
+      if(!deleted) return res.status(404).json({ error: 'Message not found' });
+      return res.status(200).json({ ok: true, deleted });
+    } catch (error) {
+      console.error('delete message failed:', error?.message || error);
+      return res.status(500).json({ error: 'Unable to delete message' });
     }
   }
   res.status(405).end();

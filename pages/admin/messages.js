@@ -12,6 +12,7 @@ const fetcher = url => fetch(url, { credentials: 'include' }).then(r => r.json()
 export default function AdminMessages(){
   const { data: session, status } = useSession();
   const { data: messages = [], mutate } = useSWR('/api/messages', fetcher);
+  const [filter, setFilter] = useState('all');
   const [replyLoading, setReplyLoading] = useState({});
   const toast = useToast();
 
@@ -51,6 +52,21 @@ export default function AdminMessages(){
     setReplyLoading(l=>({ ...l, [id]: false }));
   }
 
+  async function deleteMessage(id){
+    if(!id) return;
+    const confirmed = window.confirm('Are you sure you want to delete this message?');
+    if(!confirmed) return;
+    try{
+      const r = await fetch(`/api/messages?id=${encodeURIComponent(id)}`, { method: 'DELETE', credentials: 'include' });
+      const body = await r.json().catch(() => ({}));
+      if(!r.ok) throw new Error(body?.error || 'Delete failed');
+      toast?.push?.({ message: 'Message deleted', type: 'success' });
+      mutate();
+    }catch(e){
+      toast?.push?.({ message: 'Delete failed: ' + (e.message || 'unknown'), type: 'error' });
+    }
+  }
+
   if(status === 'loading') return <div className="p-6">Loading session...</div>;
   if(!session || session.user?.role !== 'admin') return <div className="p-6">Unauthorized</div>;
 
@@ -63,18 +79,26 @@ export default function AdminMessages(){
             <h1 className="text-2xl font-bold">Messages</h1>
             <div className="text-sm text-gray-600">Total: {messages.length}</div>
           </div>
+          <div className="mb-4 flex flex-wrap items-center gap-2">
+            <button onClick={()=>setFilter('all')} className={`px-3 py-1 rounded ${filter==='all' ? 'bg-primary text-white' : 'bg-gray-50'}`}>All ({messages.length})</button>
+            <button onClick={()=>setFilter('contact')} className={`px-3 py-1 rounded ${filter==='contact' ? 'bg-primary text-white' : 'bg-gray-50'}`}>Contact ({messages.filter(m=> (m.type||'contact')==='contact').length})</button>
+            <button onClick={()=>setFilter('feedback')} className={`px-3 py-1 rounded ${filter==='feedback' ? 'bg-primary text-white' : 'bg-gray-50'}`}>Feedback ({messages.filter(m=>m.type==='feedback').length})</button>
+            <button onClick={()=>setFilter('support')} className={`px-3 py-1 rounded ${filter==='support' ? 'bg-primary text-white' : 'bg-gray-50'}`}>Support ({messages.filter(m=>m.type==='support').length})</button>
+            <button onClick={()=>setFilter('suggestion-request')} className={`px-3 py-1 rounded ${filter==='suggestion-request' ? 'bg-primary text-white' : 'bg-gray-50'}`}>Suggestion Requests ({messages.filter(m=>m.type==='suggestion-request' || m.type==='update-request').length})</button>
+          </div>
           <div className="space-y-3">
             {messages.length === 0 && <div className="text-sm text-gray-500">No messages found.</div>}
-            {messages.map(m=> (
+            {messages.filter(m=> filter==='all' ? true : (filter==='contact' ? (m.type||'contact')==='contact' : (filter==='suggestion-request' ? (m.type==='suggestion-request' || m.type==='update-request') : m.type===filter))).map(m=> (
           <div key={m._id} className={`card ${m.read? 'opacity-70' : 'border-l-4 border-blue-500'}`}>
-            <div className="flex justify-between">
+            <div className="flex justify-between gap-3">
               <div>
-          <div className="font-medium">{m.subject || 'Customer message'} <span className="ml-2 text-xs rounded bg-gray-100 px-2 py-1">{m.type || 'support'}</span>{m.orderId ? <span className="ml-2 text-xs text-gray-500">(Order: {m.orderId})</span> : null}</div>
+          <div className="font-medium">{m.subject || 'Customer message'} <span className="ml-2 text-xs rounded bg-gray-100 px-2 py-1">{m.type === 'suggestion-request' || m.type === 'update-request' ? 'Suggestion request' : m.type || 'support'}</span>{m.orderId ? <span className="ml-2 text-xs text-gray-500">(Order: {m.orderId})</span> : null}</div>
           <div className="text-sm text-gray-500">From: {m.fromName || 'Visitor'} • {m.fromEmail || 'No email'}{m.fromPhone ? ` • ${m.fromPhone}` : ''}</div>
           {m.fromAddress && <div className="text-xs text-gray-500 mt-1">Address: {m.fromAddress}</div>}
               </div>
-              <div>
+              <div className="flex items-center gap-2">
                 {!m.read && <button onClick={()=>markRead(m._id)} className="px-2 py-1 btn-primary">Mark read</button>}
+                <button onClick={()=>deleteMessage(m._id)} className="px-2 py-1 bg-red-100 text-red-700 rounded">Delete</button>
               </div>
             </div>
             <div className="mt-2 text-sm"><MessageRenderer text={m.text} /></div>

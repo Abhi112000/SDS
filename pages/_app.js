@@ -5,7 +5,7 @@ import { CartProvider } from '../components/CartContext';
 import Header from '../components/Header';
 import Footer from '../components/Footer';
 import { ToastProvider } from '../components/Toast';
-import HelpButton from '../components/HelpButton';
+// Feedback is available from the header now; removed global HelpButton
 import { useEffect, useRef, useState } from 'react';
 import Router from 'next/router';
 
@@ -57,7 +57,6 @@ export default function App({ Component, pageProps: { session, ...pageProps } })
             <Component {...pageProps} />
           </main>
           <Footer />
-          <HelpButton />
         </ToastProvider>
       </CartProvider>
     </SessionProvider>

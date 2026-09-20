@@ -29,6 +29,31 @@ export default function ProductCard({ product }) {
   const { add, remove, cart } = useContext(CartContext);
   const router = useRouter();
 
+  async function recordProductVisit() {
+    if (typeof window === 'undefined') return;
+    const sessionId = window.localStorage.getItem('sd_visitor_session');
+    if (!sessionId) return;
+    if (router?.pathname?.startsWith('/admin')) return;
+    try {
+      await fetch('/api/visitors', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          sessionId,
+          action: 'product-open',
+          page: `/product/${id}`,
+          title: title,
+          userAgent: navigator.userAgent || '',
+          deviceType: window.innerWidth < 768 ? 'phone' : (window.innerWidth < 1024 ? 'tablet' : 'desktop'),
+          productId: id,
+          productTitle: title
+        })
+      });
+    } catch (e) {
+      // ignore tracking errors
+    }
+  }
+
   const [justAdded, setJustAdded] = useState(false);
   const inCart = (cart?.items || []).some((item) => item.productId === id);
 
@@ -43,7 +68,7 @@ export default function ProductCard({ product }) {
     {percentOff ? (
       <div className="product-card-offer-badge">-{percentOff}%</div>
     ) : null}
-      <Link href={`/product/${id}`} className="product-card-image-link">
+      <Link href={`/product/${id}`} onClick={recordProductVisit} className="product-card-image-link">
         <div className="product-card-image-panel">
           {/* responsive srcSet: thumb -> card -> large if available */}
           {(() => {

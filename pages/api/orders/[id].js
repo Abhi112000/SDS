@@ -4,7 +4,7 @@ import pusher from '@/lib/pusher';
 import { getServerSession } from 'next-auth/next';
 import { authOptions } from '../auth/[...nextauth]';
 
-const allowedStatuses = ['new','processing','shipped','delivered','cancelled'];
+const allowedStatuses = ['new','processing','shipped','delivered','completed','cancelled'];
 
 export default async function handler(req,res){
   await dbConnect();

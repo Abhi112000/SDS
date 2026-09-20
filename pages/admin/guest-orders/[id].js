@@ -66,8 +66,8 @@ export default function GuestOrderDetail({ initialOrder }){
                 const settingsBody = await settingsRes.json().catch(()=>({}));
                 let invToUse = (invBody.invoices || []).find(i => i.orderId === order._id) || invoiceRecord;
                 if(!invToUse){
-                  const invoiceId = `INV-${Date.now()}`;
-                  const createRes = await fetch('/api/admin/invoices', { method: 'POST', credentials: 'include', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ invoiceId, type: 'guest', orderId: order._id, payload: order, subtotal: order.subtotal || 0, total: order.subtotal || 0 }) });
+                  const invoiceId = new Date().toISOString().replace(/[-:T.]/g, '').slice(0, 14);
+                  const createRes = await fetch('/api/admin/invoices', { method: 'POST', credentials: 'include', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ invoiceId: `INV-${invoiceId}`, type: 'guest', orderId: order._id, payload: order, subtotal: order.subtotal || 0, total: order.subtotal || 0 }) });
                   const created = await createRes.json().catch(()=>null);
                   if(!createRes.ok){
                     toast?.push?.({ message: 'Unable to create invoice', type: 'error' });
@@ -97,40 +97,47 @@ export default function GuestOrderDetail({ initialOrder }){
         body{font-family:Arial,Helvetica,sans-serif;color:#222;margin:0;padding:24px;background:#fff}
         .container{max-width:900px;margin:0 auto;padding:24px;border:1px solid #f0f0f0}
         .header{display:flex;justify-content:space-between;align-items:center}
-        .brand{font-size:20px;font-weight:700}
-        .muted{color:#666;font-size:12px}
+        .brand{font-size:20px;font-weight:700;line-height:1.3;margin:0 0 4px;color:#111}
+        .muted{color:#555;font-size:12px;line-height:1.5}
         table{width:100%;border-collapse:collapse;margin-top:12px}
         th,td{padding:10px;border:1px solid #eee}
         th{background:#fafafa;text-align:left}
         .right{text-align:right}
         .summary{width:360px;margin-left:auto}
-        .logo{max-height:80px;max-width:220px;object-fit:contain;border-radius:4px}
+        .logo{max-height:72px;max-width:72px;object-fit:contain;border-radius:4px;flex-shrink:0}
         .watermark{position:fixed;top:40%;left:50%;transform:translate(-50%,-50%) rotate(-30deg);font-size:80px;color:rgba(0,0,0,0.04);pointer-events:none;user-select:none}
         .note{font-size:12px;color:#444;margin-top:18px}
         .footer{margin-top:28px;font-size:12px;color:#666}
+        .invoice-header{display:flex;justify-content:space-between;align-items:flex-start;gap:24px;padding:4px 2px 10px;page-break-inside:avoid}
+        .brand-block{display:flex;align-items:flex-start;gap:12px;flex:1;min-width:0}
+        .shop-meta{min-width:0}
+        .invoice-meta{min-width:180px;text-align:right;flex-shrink:0;position:relative}
+        .invoice-title{font-size:16px;font-weight:700;line-height:1.2;margin:0 0 6px;color:#111}
+        .invoice-meta-line{color:#555;font-size:12px;line-height:1.6}
+        .divider{border:none;border-top:1px solid #e5e7eb;margin:0 0 12px}
       </style>
     </head>
     <body>
   <div class="watermark">${invSettings?.watermarkText || 'SD Stationary invoice'}</div>
       <div class="container">
-        <div class="header">
-          <div style="display:flex;align-items:center;gap:12px">
+        <div class="invoice-header">
+          <div class="brand-block">
             <img src="/images/logo.jpeg" class="logo" alt="logo" />
-            <div>
+            <div class="shop-meta">
               <div class="brand">${invSettings?.brandName || 'Shree Durga Stationary'}</div>
-              <div class="muted">${invSettings?.address || ''}</div>
-              <div class="muted">Phone: ${invSettings?.phone || ''} | Email: ${invSettings?.email || ''}</div>
+              <div class="muted">${invSettings?.address || 'New Friends Colony, Sanjay Nagar, Sector 23, Ghaziabad, Uttar Pradesh'}</div>
+              <div class="muted">Phone: ${invSettings?.phone || '9818630972'} | Email: ${invSettings?.email || 'contact.sdstationary@gmail.com'}</div>
             </div>
           </div>
-          <div style="text-align:right;position:relative;min-width:220px">
+          <div class="invoice-meta">
             ${stampHtml}
-            <div style="font-size:14px;font-weight:700">Invoice</div>
-            <div class="muted">Invoice ID: ${invToUse?.invoiceId || order._id}</div>
-            <div class="muted">Date: ${new Date(order.createdAt).toLocaleString()}</div>
+            <div class="invoice-title">Invoice</div>
+            <div class="invoice-meta-line">Invoice ID: ${invToUse?.invoiceId || order._id}</div>
+            <div class="invoice-meta-line">Date: ${new Date(order.createdAt).toLocaleString()}</div>
           </div>
         </div>
 
-        <hr style="border:none;border-top:1px solid #eee;margin:16px 0" />
+        <hr class="divider" />
 
         <div>
           <div style="display:flex;justify-content:space-between;gap:12px;align-items:flex-start">
@@ -176,7 +183,7 @@ export default function GuestOrderDetail({ initialOrder }){
 
         <div class="footer">
           <div>Authorized by: ${invSettings?.brandName || 'Shree Durga Stationary'}</div>
-          <div style="margin-top:6px;color:#999;font-size:12px">For any queries, contact ${invSettings?.phone || ''} or ${invSettings?.email || ''}</div>
+          <div style="margin-top:6px;color:#999;font-size:12px">For any queries, contact +91-9818630972 or contact.sdstationary@gmail.com</div>
         </div>
       </div>
     </body>
@@ -205,9 +212,9 @@ export default function GuestOrderDetail({ initialOrder }){
             </div>
           </div>
 
-          {showInvoiceModal && (
-            <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
-              <div className="bg-white p-6 rounded shadow max-w-md w-full">
+            {showInvoiceModal && (
+            <div className="modal-overlay" onClick={(e)=>{ if(e.target === e.currentTarget) setShowInvoiceModal(false); }}>
+              <div className="modal-panel compact-gap" onClick={(e)=>e.stopPropagation()}>
                 <h3 className="text-lg font-semibold mb-3">Update invoice status</h3>
                 {invoiceLoading ? <div>Loading…</div> : (
                   <div className="space-y-3">
@@ -249,8 +256,8 @@ export default function GuestOrderDetail({ initialOrder }){
                             res = await fetch('/api/admin/invoices', { method: 'PUT', credentials: 'include', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id: invoiceRecord._id, ...payload }) });
                             data = await res.json();
                           } else {
-                            const invoiceId = `INV-${Date.now()}`;
-                            res = await fetch('/api/admin/invoices', { method: 'POST', credentials: 'include', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ invoiceId, type: 'guest', orderId: order._id, payload: order, subtotal: order.subtotal || 0, total, ...payload }) });
+                            const invoiceId = new Date().toISOString().replace(/[-:T.]/g, '').slice(0, 14);
+                            res = await fetch('/api/admin/invoices', { method: 'POST', credentials: 'include', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ invoiceId: `INV-${invoiceId}`, type: 'guest', orderId: order._id, payload: order, subtotal: order.subtotal || 0, total, ...payload }) });
                             data = await res.json();
                           }
                           if(res && res.ok){

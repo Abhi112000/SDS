@@ -4,6 +4,7 @@ const CouponSchema = new mongoose.Schema({
   type: { type: String, enum: ['percent','fixed'], default: 'percent' },
   value: Number,
   public: { type: Boolean, default: false },
+  allowedUserIds: { type: [String], default: [] },
   active: { type: Boolean, default: true },
   maxUses: { type: Number, default: 1 },
   usedCount: { type: Number, default: 0 },

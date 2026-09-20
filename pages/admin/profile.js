@@ -65,5 +65,5 @@ export default function AdminProfile({ user }) {
 export async function getServerSideProps(ctx){
   const session = await getSession(ctx);
   if(!session || session.user?.role !== 'admin') return authRedirect(ctx);
-  return { props: { user: session.user } };
+  return { redirect: { destination: '/admin', permanent: false } };
 }

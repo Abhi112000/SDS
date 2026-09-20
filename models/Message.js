@@ -9,7 +9,7 @@ const MessageSchema = new mongoose.Schema({
   toEmail: String,
   subject: String,
   text: String,
-  type: { type: String, enum: ['contact', 'feedback', 'update-request', 'support'], default: 'support' },
+  type: { type: String, enum: ['contact', 'feedback', 'suggestion-request', 'update-request', 'support'], default: 'support' },
   orderId: String,
   read: { type: Boolean, default: false },
   replies: [{ from: String, text: String, createdAt: Date }],

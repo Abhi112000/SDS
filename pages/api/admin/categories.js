@@ -5,13 +5,11 @@ import { getToken } from 'next-auth/jwt';
 
 export default async function handler(req, res){
   await dbConnect();
-  // Public GET: list categories
   if(req.method === 'GET'){
-    const cats = await Category.find({}).sort({ name: 1 }).lean();
+    const cats = await Category.find({}).sort({ parentId: 1, name: 1 }).lean();
     return res.status(200).json(cats);
   }
 
-  // protected admin actions
   const session = await getSession({ req });
   let token = null;
   try{ token = await getToken({ req, secret: process.env.NEXTAUTH_SECRET }); }catch(e){}
@@ -20,11 +18,17 @@ export default async function handler(req, res){
 
   if(req.method === 'POST'){
     try{
-      const { name } = req.body;
-      if(!name) return res.status(400).json({ error: 'name required' });
-      const exists = await Category.findOne({ name: name.trim() });
+      const { name, parentId } = req.body || {};
+      const trimmedName = String(name || '').trim();
+      if(!trimmedName) return res.status(400).json({ error: 'name required' });
+
+      const parent = parentId ? await Category.findById(parentId).lean() : null;
+      if(parentId && !parent) return res.status(400).json({ error: 'Parent category not found' });
+
+      const exists = await Category.findOne({ parentId: parent ? parent._id : null, name: trimmedName });
       if(exists) return res.status(409).json({ error: 'Category exists' });
-      const c = await Category.create({ name: name.trim() });
+
+      const c = await Category.create({ name: trimmedName, parentId: parent ? parent._id : null });
       return res.status(201).json(c);
     }catch(e){ return res.status(500).json({ error: e.message || 'create failed' }); }
   }
@@ -40,8 +44,11 @@ export default async function handler(req, res){
   if(req.method === 'DELETE'){
     try{
       const { id } = req.query;
-      await Category.findByIdAndDelete(id);
-      return res.status(204).end();
+      if(!id) return res.status(400).json({ error: 'id required' });
+      const deleted = await Category.findByIdAndDelete(id);
+      if(!deleted) return res.status(404).json({ error: 'Category not found' });
+      await Category.deleteMany({ parentId: deleted._id });
+      return res.status(200).json({ ok: true, deleted });
     }catch(e){ return res.status(500).json({ error: e.message || 'delete failed' }); }
   }
 

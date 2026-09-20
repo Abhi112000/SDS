@@ -3,6 +3,7 @@ import { useEffect, useState, useContext, useRef } from 'react';
 import useFocusTrap from '../hooks/useFocusTrap';
 import { signOut, useSession } from 'next-auth/react';
 import { CartContext } from './CartContext';
+import FeedbackModal from './FeedbackModal';
 
 export default function Header(){
   const { data: session } = useSession();
@@ -19,6 +20,7 @@ export default function Header(){
   const MENU_ID = 'main-navigation';
   const mobileToggleRef = useRef();
   const prevMobileOpenRef = useRef(mobileOpen);
+  const [feedbackOpen, setFeedbackOpen] = useState(false);
 
   useEffect(()=>{
     // set initial cart count from localStorage (persisted cart)
@@ -91,7 +93,7 @@ export default function Header(){
 
   return (
     <header className="sticky top-0 z-50 border-b border-white/50 bg-white/90 backdrop-blur-xl shadow-sm">
-      <div className="max-w-7xl mx-auto px-3 py-2 md:px-4 md:py-3 flex items-center justify-between relative">
+      <div className="max-w-7xl mx-auto px-3 py-1 md:px-4 md:py-2 flex items-center justify-between relative">
         <nav role="navigation" aria-label="Main navigation" className="flex items-center gap-2 md:gap-3">
           <Link href="/" className="flex items-center gap-2 md:gap-3 group" aria-label="Go to homepage">
             <span className="relative flex items-center justify-center h-10 w-10 md:h-12 md:w-12 rounded-full bg-gradient-to-br from-red-50 to-sky-50 border border-white shadow-sm">
@@ -172,6 +174,8 @@ export default function Header(){
                   <div className="flex flex-col gap-2 w-full">
                     <Link href="/shop" onClick={()=>setMobileOpen(false)} className="text-slate-700 hover:text-primary hover:bg-slate-50 rounded-md px-3 py-2 block" aria-label="Shop">Shop</Link>
                     <Link href="/contact" onClick={()=>setMobileOpen(false)} className="text-slate-700 hover:text-primary hover:bg-slate-50 rounded-md px-3 py-2 block" aria-label="Contact">Contact</Link>
+                      <button onClick={()=>{ setMobileOpen(false); setFeedbackOpen(true); }} className="text-slate-700 text-left hover:text-primary hover:bg-slate-50 rounded-md px-3 py-2 block">Feedback & Requests</button>
+                    
                     {session && session.user?.role !== 'admin' && (
                       <Link href="/messages" onClick={()=>setMobileOpen(false)} className="text-slate-700 hover:text-primary hover:bg-slate-50 rounded-md px-3 py-2 block" aria-label="Messages">Messages</Link>
                     )}
@@ -179,11 +183,11 @@ export default function Header(){
 
                     {session ? (
                       <>
-                        {session.user?.role === 'admin' && (
-                          <Link href="/admin" onClick={()=>setMobileOpen(false)} className="text-slate-700 hover:text-primary hover:bg-slate-50 rounded-md px-3 py-2 block" aria-label="Admin">Admin{unread?` (${unread})`:''}</Link>
+                        {session.user?.role === 'admin' ? (
+                          <Link href="/admin" onClick={()=>setMobileOpen(false)} className="text-slate-700 hover:text-primary hover:bg-slate-50 rounded-md px-3 py-2 block" aria-label="Dashboard">Dashboard</Link>
+                        ) : (
+                          <Link href="/dashboard" onClick={()=>setMobileOpen(false)} className="text-slate-700 hover:text-primary hover:bg-slate-50 rounded-md px-3 py-2 block" aria-label="Dashboard">Dashboard</Link>
                         )}
-                        <Link href="/dashboard" onClick={()=>setMobileOpen(false)} className="text-slate-700 hover:text-primary hover:bg-slate-50 rounded-md px-3 py-2 block" aria-label="Dashboard">Dashboard</Link>
-                        <Link href="/profile" onClick={()=>setMobileOpen(false)} className="text-slate-700 hover:text-primary hover:bg-slate-50 rounded-md px-3 py-2 block" aria-label="Profile">Profile</Link>
                         <button onClick={() => { setMobileOpen(false); signOut(); }} className="text-slate-700 text-left block hover:text-primary hover:bg-slate-50 rounded-md px-3 py-2" aria-label="Logout">Logout</button>
                       </>
                     ) : (
@@ -194,14 +198,16 @@ export default function Header(){
               </nav>
             </>
           ) : (
-            <nav id={MENU_ID} ref={mobileMenuRef} aria-hidden={false} className={`flex items-center gap-6`} aria-label="Primary">
+            <nav id={MENU_ID} ref={mobileMenuRef} aria-hidden={false} className={`flex items-center gap-4`} aria-label="Primary">
               <Link href="/shop" className="text-slate-700 hover:text-primary font-semibold text-sm transition-colors" aria-label="Shop">Shop</Link>
               <Link href="/contact" className="text-slate-700 hover:text-primary font-semibold text-sm transition-colors" aria-label="Contact">Contact</Link>
               {session && session.user?.role !== 'admin' && <Link href="/messages" className="text-slate-700 hover:text-primary font-semibold text-sm transition-colors" aria-label="Messages">Messages</Link>}
+              {/* Removed duplicate Feedback button (use 'Feedback & Requests' primary header button) */}
+              
             </nav>
           )}
 
-          {!isNarrow && (
+              {!isNarrow && (
             <>
               <div className="relative" ref={cartRef}>
                 <button onClick={()=>setShowCartPreview(s=>!s)} className="text-slate-700 hover:text-primary relative px-2 py-1 flex items-center gap-2 font-semibold text-sm transition-colors" aria-haspopup="dialog" aria-label="Open cart">
@@ -242,7 +248,7 @@ export default function Header(){
                           {cart.coupon && <div className="font-bold">Total: ₹{subtotal - (cart.coupon?.discount || 0)}</div>}
                         </div>
                         <div className="flex flex-col items-end">
-                          <Link href="/cart" className="px-3 py-2 btn-primary rounded text-white" aria-label="View cart">View Cart</Link>
+                          <Link href="/cart" onClick={() => setShowCartPreview(false)} className="px-3 py-2 btn-primary rounded text-white" aria-label="View cart">View Cart</Link>
                         </div>
                       </div>
                     </div>
@@ -250,22 +256,26 @@ export default function Header(){
                 )}
               </div>
 
-              {session ? (
+              <button onClick={()=>setFeedbackOpen(true)} className="px-3 py-2 bg-slate-50 hover:bg-slate-100 rounded-full text-slate-700 text-sm font-semibold">Feedback & Requests</button>
+
+                  {session ? (
                 <>
-                  {session.user?.role === 'admin' && (
-                    <Link href="/admin" className="px-3 py-2 bg-slate-100 hover:bg-slate-200 rounded-full text-slate-700 text-sm font-semibold">Admin{unread?` (${unread})`:''}</Link>
+                  {session.user?.role === 'admin' ? (
+                    <Link href="/admin" className="px-3 py-2 bg-slate-100 hover:bg-slate-200 rounded-full text-slate-700 text-sm font-semibold">Dashboard</Link>
+                  ) : (
+                    <Link href="/dashboard" className="px-2 py-1 bg-slate-50 hover:bg-slate-100 rounded-full text-slate-700 text-sm font-semibold">Dashboard</Link>
                   )}
-                  <Link href="/dashboard" className="px-3 py-2 bg-slate-50 hover:bg-slate-100 rounded-full text-slate-700 text-sm font-semibold">Dashboard</Link>
-                  <Link href="/profile" className="px-3 py-2 bg-slate-50 hover:bg-slate-100 rounded-full text-slate-700 text-sm font-semibold">Profile</Link>
                   <button onClick={() => signOut()} className="ml-2 px-3 py-2 bg-slate-50 hover:bg-slate-100 rounded-full text-slate-700 text-sm font-semibold">Logout</button>
                 </>
               ) : (
-                <Link href="/login" className="px-4 py-2 rounded-full bg-slate-900 text-white text-sm font-semibold hover:bg-primary transition-colors">Login</Link>
+                    <Link href="/login" className="px-4 py-2 rounded-full bg-slate-900 text-white text-sm font-semibold hover:bg-primary transition-colors">Login</Link>
               )}
             </>
           )}
         </div>
       </div>
+      <FeedbackModal open={feedbackOpen} onClose={()=>setFeedbackOpen(false)} />
+
     </header>
   );
 }

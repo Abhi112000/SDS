@@ -5,11 +5,13 @@ import ProductCard from "../components/ProductCard";
 import dbConnect from '@/lib/dbConnect';
 import Product from '@/models/Product';
 import Category from '@/models/Category';
+import { useSession } from 'next-auth/react';
 import { useEffect, useMemo, useRef, useState } from 'react';
 
 export default function Shop({ products = [], categories = [], q = '', category = '' }) {
   const router = useRouter();
-  const gridRef = useRef(null);
+  const { data: session } = useSession();
+  const resultsRef = useRef(null);
   const pageSize = 20;
   const [search, setSearch] = useState(q || '');
   const [page, setPage] = useState(1);
@@ -18,8 +20,7 @@ export default function Shop({ products = [], categories = [], q = '', category 
     return category ? [category] : [];
   });
   const [showSuggestions, setShowSuggestions] = useState(false);
-  const [showCategoryDropdown, setShowCategoryDropdown] = useState(false);
-  const categoryDropdownRef = useRef(null);
+  const [mobileFilterOpen, setMobileFilterOpen] = useState(false);
 
   const suggestionItems = useMemo(() => {
     const term = (search || '').trim().toLowerCase();
@@ -61,61 +62,171 @@ export default function Shop({ products = [], categories = [], q = '', category 
     }
   }, [page, pageCount]);
 
-  useEffect(() => {
-    function handleClick(event) {
-      if (categoryDropdownRef.current && !categoryDropdownRef.current.contains(event.target)) {
-        setShowCategoryDropdown(false);
-      }
+  async function recordVisitorActivity(action, payload = {}) {
+    if (typeof window === 'undefined') return;
+    const sessionId = window.localStorage.getItem('sd_visitor_session');
+    if (!sessionId) return;
+    if (session?.user?.role === 'admin') return;
+
+    try {
+      await fetch('/api/visitors', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          sessionId,
+          action,
+          page: '/shop',
+          title: payload.title || 'Shop',
+          deviceType: window.innerWidth < 768 ? 'phone' : (window.innerWidth < 1024 ? 'tablet' : 'desktop'),
+          userAgent: navigator.userAgent || '',
+          userId: session?.user?.id || null,
+          userName: session?.user?.name || '',
+          email: session?.user?.email || '',
+          searchTerm: payload.searchTerm || '',
+          resultCount: typeof payload.resultCount === 'number' ? payload.resultCount : null,
+          category: payload.category || '',
+          productId: payload.productId || '',
+          productTitle: payload.productTitle || ''
+        })
+      });
+    } catch (e) {
+      // ignore tracking errors
     }
-    window.addEventListener('mousedown', handleClick);
-    return () => window.removeEventListener('mousedown', handleClick);
-  }, []);
+  }
 
   function submitFilter(e){
     e && e.preventDefault();
     setPage(1);
+    const term = (search || '').trim();
+    recordVisitorActivity('search', {
+      title: term ? `Search: ${term}` : 'Shop search',
+      searchTerm: term,
+      resultCount: term ? displayProducts.length : products.length,
+      category: selectedCats.join(',')
+    });
+  }
+
+  function scrollToResults(){
+    if (!resultsRef.current || typeof window === 'undefined') return;
+    const top = resultsRef.current.getBoundingClientRect().top + window.pageYOffset - 90;
+    window.scrollTo({ top, behavior: 'smooth' });
   }
 
   function toggleCategory(catName){
     setPage(1);
-    setSelectedCats((current) => {
-      const next = current.includes(catName)
-        ? current.filter((c) => c !== catName)
-        : [...current, catName];
-      return next;
+    const current = selectedCats || [];
+    const relatedNames = getRelatedCategoryNames(catName);
+    const next = current.includes(catName) ? current.filter((c) => !relatedNames.includes(c)) : Array.from(new Set([...current, ...relatedNames]));
+    setSelectedCats(next);
+    recordVisitorActivity('category-click', {
+      title: `Category: ${catName}`,
+      category: catName,
+      resultCount: next.length === 0 ? products.length : products.filter((product) => {
+        const productCategory = String(product.category || '');
+        return (next.length === 0 || next.includes(productCategory));
+      }).length
     });
+    setTimeout(() => scrollToResults(), 80);
   }
 
   function clearCategories(){
     setPage(1);
     setSelectedCats([]);
+    setMobileFilterOpen(false);
   }
 
   function goToPage(nextPage) {
     const next = Math.max(1, Math.min(nextPage, pageCount));
     setPage(next);
-    if (gridRef.current) {
-      gridRef.current.scrollIntoView({ behavior: 'smooth', block: 'start' });
-    }
+    setTimeout(() => scrollToResults(), 60);
   }
 
-  return (
-    <main className="max-w-7xl mx-auto px-4 py-4">
-      <Breadcrumbs items={[{ label: 'Shop' }]} />
-      <div className="flex flex-wrap items-center justify-between gap-4 mb-4">
-        <div>
-          <div className="page-section-kicker">Storefront</div>
-          <h1 className="text-3xl md:text-4xl font-bold text-gray-800 mt-2">Our Products</h1>
+  const categoryMap = new Map((categories || []).map((c) => [String(c._id || c.id), c]));
+  const childrenByParent = categories.reduce((acc, c) => {
+    const parentId = c.parentId ? String(c.parentId) : null;
+    if (!parentId) return acc;
+    const parentList = acc.get(parentId) || [];
+    parentList.push(c);
+    acc.set(parentId, parentList);
+    return acc;
+  }, new Map());
+  const rootCategories = (categories || []).filter((c) => !c.parentId);
+  const [expandedCats, setExpandedCats] = useState({});
+
+  function toggleExpanded(catId) {
+    setExpandedCats((prev) => ({ ...prev, [catId]: !prev[catId] }));
+  }
+
+  function getRelatedCategoryNames(catName) {
+    const categoryDoc = (categories || []).find((c) => (c.name || c.title || '') === catName);
+    if (!categoryDoc) return [catName];
+    const related = new Set([catName]);
+    const childList = childrenByParent.get(String(categoryDoc._id || categoryDoc.id)) || [];
+    childList.forEach((child) => related.add(child.name || child.title || ''));
+    return Array.from(related).filter(Boolean);
+  }
+
+  function categoryButtonsForList(list) {
+    return list.map((c) => {
+      const catName = c.name || c.title || '';
+      const catId = String(c._id || c.id || catName);
+      const children = childrenByParent.get(catId) || [];
+      const isExpanded = !!expandedCats[catId];
+      const hasChildren = children.length > 0;
+      const checked = selectedCats.includes(catName) || (hasChildren && children.some((child) => selectedCats.includes(child.name || child.title || '')));
+
+      return (
+        <div key={catId} className="space-y-1">
+          <div className="flex items-center gap-1.5">
+            {hasChildren ? (
+              <button type="button" onClick={() => toggleExpanded(catId)} className="flex h-5 w-5 items-center justify-center rounded border border-slate-200 bg-slate-50 text-xs text-slate-600 hover:border-primary hover:text-primary">
+                {isExpanded ? '−' : '+'}
+              </button>
+            ) : (
+              <span className="h-5 w-5" />
+            )}
+            <button type="button" aria-pressed={checked} onClick={() => toggleCategory(catName)} className={`flex-1 text-left rounded-lg border px-2.5 py-1.5 text-xs font-medium transition ${checked ? 'bg-primary text-white border-primary shadow-sm' : 'bg-white text-slate-700 border-slate-200 hover:border-primary hover:text-primary'}`}>{catName}</button>
+          </div>
+          {hasChildren && isExpanded && (
+            <div className="ml-6 space-y-1 border-l border-slate-200 pl-2">
+              {children.map((child) => {
+                const childName = child.name || child.title || '';
+                const childChecked = selectedCats.includes(childName);
+                return (
+                  <button key={String(child._id || child.id || childName)} type="button" aria-pressed={childChecked} onClick={() => toggleCategory(childName)} className={`w-full text-left rounded-lg border px-2.5 py-1.5 text-[11px] font-medium transition ${childChecked ? 'bg-primary text-white border-primary shadow-sm' : 'bg-white text-slate-700 border-slate-200 hover:border-primary hover:text-primary'}`}>{childName}</button>
+                );
+              })}
+            </div>
+          )}
         </div>
-        <button onClick={() => router.back()} className="mb-2 px-4 py-2 btn-secondary rounded">Back</button>
+      );
+    });
+  }
+
+  const categoryButtons = (
+    <div className="space-y-1.5">
+      <button type="button" aria-pressed={selectedCats.length === 0} onClick={clearCategories} className={`w-full text-left rounded-lg border px-2.5 py-1.5 text-xs font-medium transition ${selectedCats.length === 0 ? 'bg-primary text-white border-primary shadow-sm' : 'bg-white text-slate-700 border-slate-200 hover:border-primary hover:text-primary'}`}>All products</button>
+      {categoryButtonsForList(rootCategories)}
+    </div>
+  );
+
+  return (
+    <main className="max-w-7xl mx-auto px-3 py-3 md:px-4 md:py-4">
+      <Breadcrumbs items={[{ label: 'Shop' }]} />
+      <div className="flex flex-wrap items-center justify-between gap-3 mb-3 md:mb-4">
+        <div>
+          <div className="page-section-kicker text-[10px] md:text-xs">Storefront</div>
+          <h1 className="text-2xl md:text-3xl font-bold text-gray-800 mt-1">Our Products</h1>
+        </div>
+        <button onClick={() => router.back()} className="mb-1 px-3 py-1.5 btn-secondary rounded text-sm">Back</button>
       </div>
 
-      <section className="form-panel p-3 md:p-4 mb-4">
-        <form onSubmit={submitFilter} className="flex flex-col gap-4">
-          <div className="flex flex-col md:flex-row gap-3 items-stretch md:items-center">
+      <section className="form-panel p-2.5 md:p-3 mb-3 md:mb-4">
+        <form onSubmit={submitFilter} className="flex flex-col gap-3 md:gap-3">
+          <div className="flex flex-col md:flex-row gap-2.5 items-stretch md:items-center">
             <label className="sr-only" htmlFor="product-search">Search products</label>
             <div className="relative flex-1 min-w-[210px]">
-              <input id="product-search" placeholder="Search products" value={search} onChange={(e)=>{ setSearch(e.target.value); setPage(1); setShowSuggestions(true); }} onFocus={()=>setShowSuggestions(true)} onBlur={()=>setTimeout(()=>setShowSuggestions(false), 120)} className="form-field w-full" />
+              <input id="product-search" placeholder="Search products" value={search} onChange={(e)=>{ setSearch(e.target.value); setPage(1); setShowSuggestions(true); }} onFocus={()=>setShowSuggestions(true)} onBlur={()=>setTimeout(()=>setShowSuggestions(false), 120)} className="form-field w-full text-sm py-2.5" />
               {showSuggestions && suggestionItems.length > 0 && (
                 <div className="absolute z-30 left-0 right-0 top-full mt-1 bg-white border rounded shadow-xl max-h-72 overflow-auto">
                   {suggestionItems.map((item) => (
@@ -127,50 +238,42 @@ export default function Shop({ products = [], categories = [], q = '', category 
                 </div>
               )}
             </div>
-            <button className="px-4 py-3 btn-primary rounded-lg min-w-[130px]">Search</button>
+            <button className="px-3 py-2.5 btn-primary rounded-lg min-w-[110px] text-sm">Search</button>
           </div>
 
-          <div className="mt-2" ref={categoryDropdownRef}>
-            <div className="flex items-center justify-between gap-3">
-              <div className="flex items-center gap-2">
-                <span className="inline-flex h-2.5 w-2.5 rounded-full bg-primary"></span>
-                <span className="text-xs font-black uppercase tracking-[0.2em] text-slate-500">Shop by collection</span>
-              </div>
-              <div className="flex items-center gap-2">
-                <button type="button" onClick={() => setShowCategoryDropdown((s) => !s)} className="inline-flex items-center justify-between gap-2 rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-700 shadow-sm hover:border-primary hover:text-primary">
-                  <span>{selectedCats.length ? `${selectedCats.length} selected` : 'All categories'}</span>
-                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden>
-                    <path d="M6 9l6 6 6-6" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
-                  </svg>
+          <div className="flex items-center justify-between gap-2 md:gap-3">
+            <div className="flex items-center gap-2">
+              <span className="inline-flex h-2 w-2 rounded-full bg-primary"></span>
+              <span className="text-[10px] md:text-xs font-black uppercase tracking-[0.2em] text-slate-500">Shop by collection</span>
+            </div>
+            <div className="flex items-center gap-2">
+              {selectedCats.length > 0 && (
+                <button type="button" onClick={clearCategories} className="text-[10px] md:text-[11px] font-bold text-primary hover:underline">
+                  Clear all
                 </button>
-                {selectedCats.length > 0 && (
-                  <button type="button" onClick={clearCategories} className="text-xs font-bold text-primary hover:underline">
-                    Clear all
-                  </button>
-                )}
-              </div>
+              )}
             </div>
+          </div>
 
-            <div className="relative mt-3">
-              <div className={`absolute left-0 right-0 z-20 overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-xl transition-all duration-200 ${showCategoryDropdown ? 'block' : 'hidden'}`}>
-                <div className="grid gap-2 p-3 sm:grid-cols-2 lg:grid-cols-3">
-                  <button type="button" aria-pressed={selectedCats.length === 0} onClick={clearCategories} className={`category-chip ${selectedCats.length === 0 ? 'is-selected' : ''}`}>All products</button>
-                  {categories.map((c) => {
-                    const catName = c.name || c.title || '';
-                    const checked = selectedCats.includes(catName);
-                    return (
-                      <button key={c._id || c.id} type="button" aria-pressed={checked} onClick={() => toggleCategory(catName)} className={`category-chip ${checked ? 'is-selected' : ''}`}>{catName}</button>
-                    );
-                  })}
-                </div>
+          <div className={`lg:hidden fixed inset-0 z-40 ${mobileFilterOpen ? 'pointer-events-auto' : 'pointer-events-none'}`} aria-hidden={!mobileFilterOpen}>
+            <div className={`absolute inset-0 bg-slate-900/40 transition-opacity ${mobileFilterOpen ? 'opacity-100' : 'opacity-0'}`} onClick={() => setMobileFilterOpen(false)} />
+            <aside className={`absolute left-0 top-[12%] h-[88%] w-[60%] max-w-sm bg-white shadow-2xl transform transition-transform duration-200 ${mobileFilterOpen ? 'translate-x-0' : '-translate-x-full'} relative flex flex-col rounded-r-2xl overflow-hidden`}>
+              <div className="sticky top-0 z-20 flex items-center justify-between border-b border-slate-200 bg-white px-3 py-2 pr-11 shadow-[0_1px_0_rgba(15,23,42,0.04)]">
+                <h2 className="text-[10px] font-bold uppercase tracking-[0.18em] text-slate-700">Categories</h2>
+                <button type="button" onClick={() => setMobileFilterOpen(false)} className="flex h-7 w-7 items-center justify-center rounded-full border border-slate-200 bg-white text-lg leading-none text-slate-600 shadow-sm hover:bg-slate-100 hover:text-slate-900" aria-label="Close category panel">×</button>
               </div>
-            </div>
+              <div className="flex-1 overflow-y-auto p-2 pb-3 pt-2 space-y-1">
+                {categoryButtons}
+              </div>
+            </aside>
+          </div>
 
+          <div className="hidden lg:block">
             {selectedCats.length > 0 && (
-              <div className="mt-4 flex flex-wrap items-center gap-2">
-                <span className="text-xs font-black uppercase tracking-[0.18em] text-slate-500">Selected</span>
+              <div className="mt-3 flex flex-wrap items-center gap-2">
+                <span className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-500">Selected</span>
                 {selectedCats.map((cat) => (
-                  <span key={cat} className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-primary/10 text-primary text-xs font-bold border border-primary/20">
+                  <span key={cat} className="inline-flex items-center gap-2 px-2.5 py-0.5 rounded-full bg-primary/10 text-primary text-[11px] font-bold border border-primary/20">
                     {cat}
                     <button type="button" aria-label={`Remove ${cat}`} onClick={() => toggleCategory(cat)} className="text-primary hover:text-red-600 leading-none">×</button>
                   </span>
@@ -181,12 +284,43 @@ export default function Shop({ products = [], categories = [], q = '', category 
         </form>
       </section>
 
-      <div ref={gridRef} className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
-        {pageProducts.map((product) => (
-          <div key={product._id}>
-            <ProductCard product={product} />
+      <div className="lg:grid lg:grid-cols-[260px_minmax(0,1fr)] lg:gap-5">
+        <aside className="hidden lg:block">
+          <div className="rounded-xl border border-slate-200 bg-white p-2.5 shadow-sm sticky top-4">
+            <div className="mb-2 flex items-center justify-between">
+              <h2 className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-500">Categories</h2>
+            </div>
+            {categoryButtons}
           </div>
-        ))}
+        </aside>
+
+        <div>
+          <div className="mb-3 lg:hidden">
+            <button type="button" onClick={() => setMobileFilterOpen(true)} className="inline-flex items-center justify-center rounded-xl border border-slate-200 bg-white px-2.5 py-1.5 text-[11px] font-semibold text-slate-700 shadow-sm hover:border-primary hover:text-primary">
+              Browse Categories
+            </button>
+          </div>
+
+          {selectedCats.length > 0 && (
+            <div className="mb-3 flex flex-wrap items-center gap-2 lg:hidden">
+              <span className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-500">Selected</span>
+              {selectedCats.map((cat) => (
+                <span key={cat} className="inline-flex items-center gap-2 px-2.5 py-0.5 rounded-full bg-primary/10 text-primary text-[11px] font-bold border border-primary/20">
+                  {cat}
+                  <button type="button" aria-label={`Remove ${cat}`} onClick={() => toggleCategory(cat)} className="text-primary hover:text-red-600 leading-none">×</button>
+                </span>
+              ))}
+            </div>
+          )}
+
+          <div ref={resultsRef} className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 xl:grid-cols-4 gap-4">
+            {pageProducts.map((product) => (
+              <div key={product._id}>
+                <ProductCard product={product} />
+              </div>
+            ))}
+          </div>
+        </div>
       </div>
 
       {displayProducts.length > pageSize && (

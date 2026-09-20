@@ -142,8 +142,11 @@ export default function Profile({ user }) {
 
 export async function getServerSideProps(ctx) {
   const session = await getSession(ctx);
-  if (!session)
-    return authRedirect(ctx);
+  if (!session) return authRedirect(ctx);
 
-  return { props: { user: session.user } };
+  if (session.user?.role === 'admin') {
+    return { redirect: { destination: '/admin', permanent: false } };
+  }
+
+  return { redirect: { destination: '/dashboard', permanent: false } };
 }
