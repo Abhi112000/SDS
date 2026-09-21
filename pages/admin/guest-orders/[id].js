@@ -269,7 +269,7 @@ export default function GuestOrderDetail({ initialOrder }){
                             res = await fetch('/api/admin/invoices', { method: 'PUT', credentials: 'include', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id: invoiceRecord._id, ...payload }) });
                             data = await res.json();
                           } else {
-                            const invoiceId = new Intl.DateTimeFormat('en-CA', {
+                            const invoiceParts = new Intl.DateTimeFormat('en-CA', {
                               timeZone: 'Asia/Kolkata',
                               year: 'numeric',
                               month: '2-digit',
@@ -282,8 +282,8 @@ export default function GuestOrderDetail({ initialOrder }){
                               if (part.type !== 'literal') acc[part.type] = part.value;
                               return acc;
                             }, {});
-                            const invoiceId = `${invoiceId.year || '0000'}${invoiceId.month || '00'}${invoiceId.day || '00'}${invoiceId.hour || '00'}${invoiceId.minute || '00'}${invoiceId.second || '00'}`;
-                            res = await fetch('/api/admin/invoices', { method: 'POST', credentials: 'include', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ invoiceId: `INV-${invoiceId}`, type: 'guest', orderId: order._id, payload: order, subtotal: order.subtotal || 0, total, ...payload }) });
+                            const invoiceStamp = `${invoiceParts.year || '0000'}${invoiceParts.month || '00'}${invoiceParts.day || '00'}${invoiceParts.hour || '00'}${invoiceParts.minute || '00'}${invoiceParts.second || '00'}`;
+                            res = await fetch('/api/admin/invoices', { method: 'POST', credentials: 'include', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ invoiceId: `INV-${invoiceStamp}`, type: 'guest', orderId: order._id, payload: order, subtotal: order.subtotal || 0, total, ...payload }) });
                             data = await res.json();
                           }
                           if(res && res.ok){
