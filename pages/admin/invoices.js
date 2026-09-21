@@ -69,8 +69,22 @@ export default function AdminInvoices(){
   const invoiceSubtotal = invoiceItems.reduce((sum, item) => sum + Number(item.price || 0) * Number(item.qty || 1), 0);
 
   function buildInvoiceId(){
-    const ts = new Date();
-    return `INV-${ts.toISOString().replace(/[-:T.]/g, '').slice(0, 14)}`;
+    const formatter = new Intl.DateTimeFormat('en-CA', {
+      timeZone: 'Asia/Kolkata',
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+      hour: '2-digit',
+      minute: '2-digit',
+      second: '2-digit',
+      hour12: false,
+    });
+    const parts = formatter.formatToParts(new Date());
+    const values = {};
+    parts.forEach(part => {
+      if (part.type !== 'literal') values[part.type] = part.value;
+    });
+    return `INV-${(values.year || '0000')}${(values.month || '00')}${(values.day || '00')}${(values.hour || '00')}${(values.minute || '00')}${(values.second || '00')}`;
   }
 
   async function saveCustomerInvoice(){

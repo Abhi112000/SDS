@@ -66,8 +66,21 @@ export default function GuestOrderDetail({ initialOrder }){
                 const settingsBody = await settingsRes.json().catch(()=>({}));
                 let invToUse = (invBody.invoices || []).find(i => i.orderId === order._id) || invoiceRecord;
                 if(!invToUse){
-                  const invoiceId = new Date().toISOString().replace(/[-:T.]/g, '').slice(0, 14);
-                  const createRes = await fetch('/api/admin/invoices', { method: 'POST', credentials: 'include', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ invoiceId: `INV-${invoiceId}`, type: 'guest', orderId: order._id, payload: order, subtotal: order.subtotal || 0, total: order.subtotal || 0 }) });
+                  const invoiceId = new Intl.DateTimeFormat('en-CA', {
+                    timeZone: 'Asia/Kolkata',
+                    year: 'numeric',
+                    month: '2-digit',
+                    day: '2-digit',
+                    hour: '2-digit',
+                    minute: '2-digit',
+                    second: '2-digit',
+                    hour12: false,
+                  }).formatToParts(new Date()).reduce((acc, part) => {
+                    if (part.type !== 'literal') acc[part.type] = part.value;
+                    return acc;
+                  }, {});
+                  const invoiceDateTime = `${invoiceId.year || '0000'}${invoiceId.month || '00'}${invoiceId.day || '00'}${invoiceId.hour || '00'}${invoiceId.minute || '00'}${invoiceId.second || '00'}`;
+                  const createRes = await fetch('/api/admin/invoices', { method: 'POST', credentials: 'include', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ invoiceId: `INV-${invoiceDateTime}`, type: 'guest', orderId: order._id, payload: order, subtotal: order.subtotal || 0, total: order.subtotal || 0 }) });
                   const created = await createRes.json().catch(()=>null);
                   if(!createRes.ok){
                     toast?.push?.({ message: 'Unable to create invoice', type: 'error' });
@@ -256,7 +269,20 @@ export default function GuestOrderDetail({ initialOrder }){
                             res = await fetch('/api/admin/invoices', { method: 'PUT', credentials: 'include', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id: invoiceRecord._id, ...payload }) });
                             data = await res.json();
                           } else {
-                            const invoiceId = new Date().toISOString().replace(/[-:T.]/g, '').slice(0, 14);
+                            const invoiceId = new Intl.DateTimeFormat('en-CA', {
+                              timeZone: 'Asia/Kolkata',
+                              year: 'numeric',
+                              month: '2-digit',
+                              day: '2-digit',
+                              hour: '2-digit',
+                              minute: '2-digit',
+                              second: '2-digit',
+                              hour12: false,
+                            }).formatToParts(new Date()).reduce((acc, part) => {
+                              if (part.type !== 'literal') acc[part.type] = part.value;
+                              return acc;
+                            }, {});
+                            const invoiceId = `${invoiceId.year || '0000'}${invoiceId.month || '00'}${invoiceId.day || '00'}${invoiceId.hour || '00'}${invoiceId.minute || '00'}${invoiceId.second || '00'}`;
                             res = await fetch('/api/admin/invoices', { method: 'POST', credentials: 'include', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ invoiceId: `INV-${invoiceId}`, type: 'guest', orderId: order._id, payload: order, subtotal: order.subtotal || 0, total, ...payload }) });
                             data = await res.json();
                           }

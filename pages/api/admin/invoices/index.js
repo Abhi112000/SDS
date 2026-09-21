@@ -5,6 +5,25 @@ import Invoice from '@/models/Invoice';
 import Order from '@/models/Order';
 import User from '@/models/User';
 
+function formatInvoiceDateTimeStamp(date = new Date()) {
+  const formatter = new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'Asia/Kolkata',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
+    hour12: false,
+  });
+  const parts = formatter.formatToParts(date);
+  const values = {};
+  parts.forEach(part => {
+    if (part.type !== 'literal') values[part.type] = part.value;
+  });
+  return `${values.year || '0000'}${values.month || '00'}${values.day || '00'}${values.hour || '00'}${values.minute || '00'}${values.second || '00'}`;
+}
+
 export default async function handler(req, res){
   // try session first, then fallback to JWT token (useful for some server environments)
   const session = await getSession({ req });
@@ -39,8 +58,7 @@ export default async function handler(req, res){
       }
       // ensure invoiceId with date-time stamp in the suffix for traceability
       if(!body.invoiceId){
-        const ts = new Date();
-        body.invoiceId = `INV-${ts.toISOString().replace(/[-:T.]/g, '').slice(0, 14)}`;
+        body.invoiceId = `INV-${formatInvoiceDateTimeStamp()}`;
       }
       const payload = body.payload || {};
       const deliveryCharge = Number(body.shipping ?? body.deliveryCharge ?? payload.deliveryCharge ?? 0);

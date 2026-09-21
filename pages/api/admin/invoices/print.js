@@ -113,9 +113,13 @@ export default async function handler(req, res){
         .footer-block{margin-top:18px;padding-top:12px;border-top:1px solid #e5e7eb;font-size:12px;color:#444;line-height:1.7}
         .footer-note{margin:0 0 8px}
         .footer-line{margin:0}
+        .print-bar{display:flex;justify-content:flex-end;margin-bottom:12px}
+        .print-btn{display:inline-flex;align-items:center;gap:6px;padding:8px 14px;background:#2563eb;color:#fff;border:none;border-radius:6px;cursor:pointer;font-weight:600}
+        @media print {.print-bar{display:none !important}.print-btn{display:none !important}}
       </style>
     </head>
     <body>
+      <div class="print-bar"><button type="button" class="print-btn" onclick="window.print()">Print</button></div>
       <div class="watermark">${watermark}</div>
       <div class="container invoice-compact">
         <div class="invoice-header">
@@ -140,12 +144,6 @@ export default async function handler(req, res){
           <div style="min-width:220px">
             <h3 style="margin-bottom:8px">Billed To</h3>
             ${customerHtml}
-          </div>
-          <div style="min-width:220px">
-            <h3 style="margin-bottom:8px">Invoice Details</h3>
-            <div>Type: ${escapeHtml(invoice.type || 'custom')}</div>
-            <div>Order ID: ${escapeHtml(invoice.orderId || '')}</div>
-            <div>Status: ${escapeHtml(invoice.status || '')}</div>
           </div>
         </div>
 

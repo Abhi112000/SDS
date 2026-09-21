@@ -77,6 +77,25 @@ export default function AdminOrderDetail({ initialOrder }){
 
   const getInvoicePrintUrl = invoiceId => `${window.location.origin}/api/admin/invoices/print?id=${encodeURIComponent(invoiceId)}&public=1`;
 
+  const formatInvoiceDateTimeStamp = (date = new Date()) => {
+    const formatter = new Intl.DateTimeFormat('en-CA', {
+      timeZone: 'Asia/Kolkata',
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+      hour: '2-digit',
+      minute: '2-digit',
+      second: '2-digit',
+      hour12: false,
+    });
+    const parts = formatter.formatToParts(date);
+    const values = {};
+    parts.forEach(part => {
+      if (part.type !== 'literal') values[part.type] = part.value;
+    });
+    return `${values.year || '0000'}${values.month || '00'}${values.day || '00'}${values.hour || '00'}${values.minute || '00'}${values.second || '00'}`;
+  };
+
   return (
     <div className="p-6">
           <button onClick={()=>router.back()} className="mb-4 px-3 py-1 border rounded">Back</button>
@@ -152,7 +171,7 @@ export default function AdminOrderDetail({ initialOrder }){
               // create invoice on-the-fly
               const couponDisc = (order.coupon && order.coupon.discountAmount) || 0;
               const total = (order.subtotal || 0) - couponDisc;
-              const invoiceId = new Date().toISOString().replace(/[-:T.]/g, '').slice(0, 14);
+              const invoiceId = formatInvoiceDateTimeStamp();
               const createRes = await fetch('/api/admin/invoices', { method: 'POST', credentials: 'include', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ invoiceId: `INV-${invoiceId}`, type: 'order', orderId: order._id, payload: order, subtotal: order.subtotal || 0, discount: couponDisc, total }) });
               const created = await createRes.json().catch(()=>null);
               invToUse = created && created.invoice ? created.invoice : null;
@@ -293,7 +312,7 @@ export default function AdminOrderDetail({ initialOrder }){
             if(!invToUse){
               const couponDisc = (order.coupon && order.coupon.discountAmount) || 0;
               const total = (order.subtotal || 0) - couponDisc;
-              const invoiceId = new Date().toISOString().replace(/[-:T.]/g, '').slice(0, 14);
+              const invoiceId = formatInvoiceDateTimeStamp();
               const createRes = await fetch('/api/admin/invoices', { method: 'POST', credentials: 'include', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ invoiceId: `INV-${invoiceId}`, type: 'order', orderId: order._id, payload: order, subtotal: order.subtotal || 0, discount: couponDisc, total }) });
               const created = await createRes.json().catch(()=>null);
               invToUse = created && created.invoice ? created.invoice : null;
@@ -371,7 +390,7 @@ export default function AdminOrderDetail({ initialOrder }){
                         res = await fetch('/api/admin/invoices', { method: 'PUT', credentials: 'include', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id: invoiceRecord._id, ...payload }) });
                         data = await res.json();
                       } else {
-                        const invoiceId = new Date().toISOString().replace(/[-:T.]/g, '').slice(0, 14);
+                        const invoiceId = formatInvoiceDateTimeStamp();
                         res = await fetch('/api/admin/invoices', { method: 'POST', credentials: 'include', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ invoiceId: `INV-${invoiceId}`, type: 'order', orderId: order._id, payload: order, subtotal: order.subtotal || 0, discount: discountToSave, shipping: shippingToSave, total, ...payload }) });
                         data = await res.json();
                       }

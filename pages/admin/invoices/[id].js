@@ -12,26 +12,34 @@ export default function InvoiceDetail({ invoice }){
   const router = useRouter();
   if(!invoice) return <div className="p-6">Invoice not found</div>;
   return (
-    <div className="p-6">
-      <div className="grid md:grid-cols-4 gap-6">
-        <AdminSidebar />
-        <main className="md:col-span-3">
-          <button onClick={()=>router.back()} className="mb-4 px-3 py-1 border rounded">Back</button>
-          <h1 className="text-2xl font-bold mb-4">Invoice {formatReferenceId('invoice', invoice, invoice.payload?.guest === true)}</h1>
-          <div className="bg-white p-4 rounded shadow mb-4">
-            <div><strong>Status:</strong> {invoice.status}</div>
-            <div><strong>Total:</strong> ₹{invoice.total}</div>
-            <div><strong>Created:</strong> {fmtISO(invoice.createdAt)}</div>
-            <div className="mt-3">
-              <pre className="text-sm bg-gray-50 p-3 rounded overflow-auto">{JSON.stringify(invoice.payload || {}, null, 2)}</pre>
+    <>
+      <style jsx>{`
+        .no-print { display: inline-block; }
+        @media print {
+          .no-print { display: none !important; }
+        }
+      `}</style>
+      <div className="p-6">
+        <div className="grid md:grid-cols-4 gap-6">
+          <AdminSidebar />
+          <main className="md:col-span-3">
+            <button onClick={()=>router.back()} className="mb-4 px-3 py-1 border rounded">Back</button>
+            <h1 className="text-2xl font-bold mb-4">Invoice {formatReferenceId('invoice', invoice, invoice.payload?.guest === true)}</h1>
+            <div className="bg-white p-4 rounded shadow mb-4">
+              <div><strong>Status:</strong> {invoice.status}</div>
+              <div><strong>Total:</strong> ₹{invoice.total}</div>
+              <div><strong>Created:</strong> {fmtISO(invoice.createdAt)}</div>
+              <div className="mt-3">
+                <pre className="text-sm bg-gray-50 p-3 rounded overflow-auto">{JSON.stringify(invoice.payload || {}, null, 2)}</pre>
+              </div>
             </div>
-          </div>
-          <div className="flex gap-2">
-            <button onClick={() => { window.open('/api/admin/invoices/print?id='+(invoice._id || invoice.invoiceId), '_blank'); }} className="px-3 py-1 bg-blue-600 text-white rounded">Print / Download</button>
-          </div>
-        </main>
+            <div className="flex gap-2">
+              <button onClick={() => { window.open('/api/admin/invoices/print?id='+(invoice._id || invoice.invoiceId), '_blank'); }} className="no-print px-3 py-1 bg-blue-600 text-white rounded">Print / Download</button>
+            </div>
+          </main>
+        </div>
       </div>
-    </div>
+    </>
   );
 }
 
