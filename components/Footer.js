@@ -103,8 +103,8 @@ export default function Footer() {
   }, [session?.user?.id, session?.user?.name, session?.user?.email]);
 
   return (
-    <footer className="mt-16 border-t border-slate-100 bg-[#fffdfb]">
-      <div className="max-w-7xl mx-auto px-4 py-12 grid md:grid-cols-3 gap-8 bg-white/80 border border-gray-100 text-slate-700 rounded-2xl items-start shadow-sm">
+    <footer className="mt-10 border-t border-slate-100 bg-[#fffdfb]">
+      <div className="max-w-7xl mx-auto px-4 py-8 md:py-10 grid md:grid-cols-3 gap-6 md:gap-7 bg-gradient-to-br from-white via-slate-50 to-red-50/60 border border-gray-100 text-slate-700 rounded-[1.75rem] items-start shadow-[0_18px_38px_rgba(15,23,42,0.06)]">
         <div className="flex flex-col gap-3">
           <Link href="/" className="flex items-center gap-3">
             <img src="/images/logo.jpeg" alt="Shree Durga" className="h-12 w-auto object-contain" />
@@ -138,8 +138,10 @@ export default function Footer() {
           </form>
 
           {isActive && (
-            <div className="mt-4 flex justify-start">
-              <div className="flex h-10 w-10 items-center justify-center rounded-full bg-red-600 text-sm font-bold text-white shadow-sm ring-2 ring-red-100">
+            <div className="mt-4 flex items-center justify-start gap-2 text-sm text-slate-600">
+              <span className="inline-flex h-3 w-3 rounded-full bg-emerald-500 shadow-[0_0_0_4px_rgba(16,185,129,0.15)]" />
+              <span>Live shoppers</span>
+              <div className="flex h-8 w-8 items-center justify-center rounded-full bg-red-600 text-xs font-bold text-white shadow-sm ring-2 ring-red-100">
                 {liveUsers}
               </div>
             </div>

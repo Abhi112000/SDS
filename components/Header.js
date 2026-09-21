@@ -15,7 +15,7 @@ export default function Header(){
   const [showUserMenu, setShowUserMenu] = useState(false);
   const mobileMenuRef = useRef();
   const userMenuRef = useRef();
-  const [isNarrow, setIsNarrow] = useState(false); // true when viewport < 1200px
+  const [isNarrow, setIsNarrow] = useState(false);
   const [unread, setUnread] = useState(0);
   const MENU_ID = 'main-navigation';
   const mobileToggleRef = useRef();
@@ -41,7 +41,6 @@ export default function Header(){
 
   useEffect(()=>{ setCartCount(cart?.items?.reduce((s,i)=>s + (i.qty||0),0) || 0); },[cart]);
 
-  // close cart preview when clicking outside
   useEffect(()=>{
     function onDoc(e){
       if(cartRef.current && !cartRef.current.contains(e.target)){ setShowCartPreview(false); }
@@ -53,10 +52,8 @@ export default function Header(){
     return ()=>{ document.removeEventListener('click', onDoc); document.removeEventListener('keydown', onKey); };
   },[showCartPreview, mobileOpen]);
 
-  // Use reusable focus trap hook to keep focus within the mobile menu while open
   useFocusTrap(mobileMenuRef, mobileOpen, { initialFocus: true });
 
-  // Restore focus to the mobile toggle button when the menu closes
   useEffect(()=>{
     if(prevMobileOpenRef.current && !mobileOpen){
       try{ mobileToggleRef.current?.focus(); }catch(e){}
@@ -64,7 +61,6 @@ export default function Header(){
     prevMobileOpenRef.current = mobileOpen;
   },[mobileOpen]);
 
-  // track a custom breakpoint (1200px) so we can control dropdown behavior precisely
   useEffect(()=>{
     function update(){ try{ setIsNarrow(window.innerWidth < 1200); }catch(e){} }
     update();
@@ -72,14 +68,12 @@ export default function Header(){
     return ()=> window.removeEventListener('resize', update);
   },[]);
 
-  // prevent body scroll when mobile dropdown is open
   useEffect(()=>{
     if(isNarrow && mobileOpen){ document.body.style.overflow = 'hidden'; }
     else { document.body.style.overflow = ''; }
     return ()=>{ document.body.style.overflow = ''; };
   },[isNarrow, mobileOpen]);
 
-  // If the viewport becomes wide, ensure mobile menu is closed
   useEffect(()=>{ if(!isNarrow && mobileOpen) setMobileOpen(false); },[isNarrow]);
 
   useEffect(()=>{
@@ -202,8 +196,6 @@ export default function Header(){
               <Link href="/shop" className="text-slate-700 hover:text-primary font-semibold text-sm transition-colors" aria-label="Shop">Shop</Link>
               <Link href="/contact" className="text-slate-700 hover:text-primary font-semibold text-sm transition-colors" aria-label="Contact">Contact</Link>
               {session && session.user?.role !== 'admin' && <Link href="/messages" className="text-slate-700 hover:text-primary font-semibold text-sm transition-colors" aria-label="Messages">Messages</Link>}
-              {/* Removed duplicate Feedback button (use 'Feedback & Requests' primary header button) */}
-              
             </nav>
           )}
 
@@ -275,7 +267,6 @@ export default function Header(){
         </div>
       </div>
       <FeedbackModal open={feedbackOpen} onClose={()=>setFeedbackOpen(false)} />
-
     </header>
   );
 }

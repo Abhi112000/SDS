@@ -15,13 +15,6 @@ const NEXTAUTH_URL_VALUE = String(resolvedNextAuthUrl).replace(/\/$/, '');
 process.env.NEXTAUTH_URL = NEXTAUTH_URL_VALUE;
 process.env.NEXTAUTH_URL_INTERNAL = process.env.NEXTAUTH_URL;
 
-console.log('[next-auth] runtime config:', {
-  NEXTAUTH_URL: process.env.NEXTAUTH_URL || null,
-  VERCEL_URL: process.env.VERCEL_URL || null,
-  NEXTAUTH_SECRET_SET: !!process.env.NEXTAUTH_SECRET,
-  USE_SECURE_COOKIES: process.env.NODE_ENV === 'production' && NEXTAUTH_URL_VALUE.startsWith('https://'),
-});
-
 export const authOptions = {
   providers: [
     // --- Manual Login (email/password)

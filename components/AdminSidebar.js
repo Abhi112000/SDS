@@ -64,6 +64,7 @@ export default function AdminSidebar(){
             <Link href="/admin/inventory" className={`block rounded px-2 py-2 text-center transition ${activeClass('/admin/inventory')}`}>Inventory</Link>
             <Link href="/admin/invoice-history" className={`block rounded px-2 py-2 text-center transition ${activeClass('/admin/invoice-history')}`}>Invoices</Link>
             <Link href="/admin/invoice-settings" className={`block rounded px-2 py-2 text-center transition ${activeClass('/admin/invoice-settings')}`}>Invoice settings</Link>
+            <Link href="/admin/home-banner" className={`block rounded px-2 py-2 text-center transition ${activeClass('/admin/home-banner')}`}>Home banner</Link>
             <Link href="/admin/messages" className={`flex items-center justify-center gap-2 rounded px-2 py-2 text-center transition ${activeClass('/admin/messages')}`}>
               <span>Messages</span>
               {unreadMessages > 0 && (

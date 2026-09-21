@@ -32,6 +32,11 @@ export default function ProductPage({ product }){
     setTimeout(()=>setAdded(false), 2000);
   }
 
+  function buyNow(){
+    addToCart();
+    router.push('/cart');
+  }
+
   const imgs = [product.image, ...(product.images || [])].filter(Boolean).filter((v,i,a)=> a.indexOf(v) === i);
 
   function pickSize(item, size){
@@ -136,7 +141,7 @@ export default function ProductPage({ product }){
             <label className="product-qty-label">Qty</label>
             <input type="number" min="1" value={qty} onChange={(e)=>setQty(Math.max(1, Number(e.target.value || 1)))} className="form-field qty-field" />
             <button onClick={addToCart} className="product-primary-button">Add to Cart</button>
-            <button onClick={()=>{ addToCart(); window.location='/cart'; }} className="product-secondary-button">Buy Now</button>
+            <button onClick={buyNow} className="product-secondary-button">Buy Now</button>
           </div>
 
           {added && <div className="product-added-toast detail-toast">Added to cart</div>}

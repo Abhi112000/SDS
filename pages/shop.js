@@ -211,7 +211,7 @@ export default function Shop({ products = [], categories = [], q = '', category 
   );
 
   return (
-    <main className="max-w-7xl mx-auto px-3 py-3 md:px-4 md:py-4">
+    <main className="shop-shell max-w-7xl mx-auto px-3 py-3 md:px-4 md:py-4">
       <Breadcrumbs items={[{ label: 'Shop' }]} />
       <div className="flex flex-wrap items-center justify-between gap-3 mb-3 md:mb-4">
         <div>
@@ -221,7 +221,7 @@ export default function Shop({ products = [], categories = [], q = '', category 
         <button onClick={() => router.back()} className="mb-1 px-3 py-1.5 btn-secondary rounded text-sm">Back</button>
       </div>
 
-      <section className="form-panel p-2.5 md:p-3 mb-3 md:mb-4">
+      <section className="form-panel shop-filters-panel p-2.5 md:p-3 mb-3 md:mb-4">
         <form onSubmit={submitFilter} className="flex flex-col gap-3 md:gap-3">
           <div className="flex flex-col md:flex-row gap-2.5 items-stretch md:items-center">
             <label className="sr-only" htmlFor="product-search">Search products</label>
@@ -284,9 +284,9 @@ export default function Shop({ products = [], categories = [], q = '', category 
         </form>
       </section>
 
-      <div className="lg:grid lg:grid-cols-[260px_minmax(0,1fr)] lg:gap-5">
-        <aside className="hidden lg:block">
-          <div className="rounded-xl border border-slate-200 bg-white p-2.5 shadow-sm sticky top-4">
+      <div className="shop-grid lg:grid lg:grid-cols-[260px_minmax(0,1fr)] lg:gap-5">
+        <aside className="hidden lg:block shop-sidebar">
+          <div className="shop-sidebar-panel rounded-xl border border-slate-200 bg-white p-2.5 shadow-sm sticky top-4">
             <div className="mb-2 flex items-center justify-between">
               <h2 className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-500">Categories</h2>
             </div>
@@ -313,7 +313,7 @@ export default function Shop({ products = [], categories = [], q = '', category 
             </div>
           )}
 
-          <div ref={resultsRef} className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 xl:grid-cols-4 gap-4">
+          <div ref={resultsRef} className="shop-results-grid grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 xl:grid-cols-4 gap-4">
             {pageProducts.map((product) => (
               <div key={product._id}>
                 <ProductCard product={product} />

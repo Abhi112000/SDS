@@ -12,38 +12,20 @@ export default async function handler(req,res){
     return res.status(200).json(products);
   }
 
-  // Protected admin actions
-  // Debug: log cookies and session to help diagnose client/session issues
-  try{
-    if(process.env.NODE_ENV !== 'production'){
-      console.log('POST /api/products - cookies:', req.headers.cookie);
-    }
-  }catch(e){}
-
-  // Use getServerSession for server-side session detection; fallback to getToken if needed
   let session = null;
   try{
     session = await getServerSession(req, res, authOptions);
-    if(process.env.NODE_ENV !== 'production'){
-      console.log('POST /api/products - session:', session && { id: session.user?.id, role: session.user?.role });
-    }
-  }catch(e){ if(process.env.NODE_ENV !== 'production') console.warn('getServerSession failed', e && e.message); }
+  }catch(e){ }
 
-  // Fallback: try to read JWT token directly if getSession didn't return session
   let token = null;
   try{
     token = await getToken({ req, secret: process.env.NEXTAUTH_SECRET });
-    if(process.env.NODE_ENV !== 'production') console.log('POST /api/products - jwt token:', token && { sub: token.sub, role: token.role });
-  }catch(e){ if(process.env.NODE_ENV !== 'production') console.log('getToken error', e && e.message); }
+  }catch(e){ }
 
   const role = session?.user?.role || token?.role;
   const userId = session?.user?.id || token?.sub;
   if(!role || role !== 'admin'){
-    const payload = { error: 'admin required' };
-    if(process.env.NODE_ENV !== 'production'){
-      payload.debug = { session: session ? { id: session.user?.id, role: session.user?.role } : null, token: token ? { sub: token.sub, role: token.role } : null };
-    }
-    return res.status(403).json(payload);
+    return res.status(403).json({ error: 'admin required' });
   }
 
   if(req.method === 'POST'){

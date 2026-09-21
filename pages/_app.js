@@ -5,7 +5,6 @@ import { CartProvider } from '../components/CartContext';
 import Header from '../components/Header';
 import Footer from '../components/Footer';
 import { ToastProvider } from '../components/Toast';
-// Feedback is available from the header now; removed global HelpButton
 import { useEffect, useRef, useState } from 'react';
 import Router from 'next/router';
 
@@ -53,7 +52,7 @@ export default function App({ Component, pageProps: { session, ...pageProps } })
               <div className="h-full w-1/3 animate-[route-progress_1s_ease-in-out_infinite] bg-red-600" />
             </div>
           )}
-          <main className="min-h-[70vh] container mx-auto px-4 py-6">
+          <main className="min-h-[70vh] container mx-auto px-3 py-4 md:px-4 md:py-5">
             <Component {...pageProps} />
           </main>
           <Footer />
