@@ -260,6 +260,16 @@ export default function AdminInvoices(){
               </div>
             ))}
 
+            <div className="mt-3">
+              <button
+                type="button"
+                onClick={() => setInvoiceItems(prev => [...prev, { title: '', qty: 1, price: 0 }])}
+                className="px-3 py-1 bg-gray-100 border rounded text-sm"
+              >
+                + Add item
+              </button>
+            </div>
+
             <div className="flex items-center justify-between mt-2">
               <div className="space-y-2">
                 <div>
