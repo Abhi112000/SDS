@@ -18,6 +18,21 @@ function fmtMoney(value){
   return '₹' + (Number(value) || 0).toFixed(2);
 }
 
+function formatInvoiceDateTime(value) {
+  const date = value ? new Date(value) : new Date();
+  if (Number.isNaN(date.getTime())) return '';
+  return new Intl.DateTimeFormat('en-IN', {
+    timeZone: 'Asia/Kolkata',
+    day: '2-digit',
+    month: '2-digit',
+    year: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
+    hour12: false,
+  }).format(date);
+}
+
 export default async function handler(req, res){
   if(req.method !== 'GET'){
     res.setHeader('Allow', 'GET');
@@ -66,7 +81,7 @@ export default async function handler(req, res){
   const payload = invoice.payload || {};
   const items = Array.isArray(payload.items) ? payload.items : [];
   const couponCode = payload.coupon?.code || invoice.payload?.coupon?.code || '';
-  const createdAt = invoice.createdAt ? new Date(invoice.createdAt).toLocaleString() : '';
+  const createdAt = invoice.createdAt ? formatInvoiceDateTime(invoice.createdAt) : '';
   const invoiceId = invoice.invoiceId || invoice._id;
   const subtotal = fmtMoney(invoice.subtotal || payload.subtotal || 0);
   const discount = fmtMoney(invoice.discount || payload.discount || 0);

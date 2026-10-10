@@ -11,6 +11,21 @@ import { authRedirect } from '@/lib/authRedirect';
 export default function GuestOrderDetail({ initialOrder }){
   const [order] = useState(initialOrder || {});
   const router = useRouter();
+
+  const formatInvoiceDateTime = value => {
+    const date = value ? new Date(value) : new Date();
+    if (Number.isNaN(date.getTime())) return '';
+    return new Intl.DateTimeFormat('en-IN', {
+      timeZone: 'Asia/Kolkata',
+      day: '2-digit',
+      month: '2-digit',
+      year: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit',
+      second: '2-digit',
+      hour12: false,
+    }).format(date);
+  };
   const [showInvoiceModal, setShowInvoiceModal] = useState(false);
   const [invoiceLoading, setInvoiceLoading] = useState(false);
   const [invoiceRecord, setInvoiceRecord] = useState(null);
@@ -146,7 +161,7 @@ export default function GuestOrderDetail({ initialOrder }){
             ${stampHtml}
             <div class="invoice-title">Invoice</div>
             <div class="invoice-meta-line">Invoice ID: ${invToUse?.invoiceId || order._id}</div>
-            <div class="invoice-meta-line">Date: ${new Date(order.createdAt).toLocaleString()}</div>
+            <div class="invoice-meta-line">Date: ${formatInvoiceDateTime(order.createdAt)}</div>
           </div>
         </div>
 

@@ -77,6 +77,21 @@ export default function AdminOrderDetail({ initialOrder }){
 
   const getInvoicePrintUrl = invoiceId => `${window.location.origin}/api/admin/invoices/print?id=${encodeURIComponent(invoiceId)}&public=1`;
 
+  const formatInvoiceDateTime = value => {
+    const date = value ? new Date(value) : new Date();
+    if (Number.isNaN(date.getTime())) return '';
+    return new Intl.DateTimeFormat('en-IN', {
+      timeZone: 'Asia/Kolkata',
+      day: '2-digit',
+      month: '2-digit',
+      year: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit',
+      second: '2-digit',
+      hour12: false,
+    }).format(date);
+  };
+
   const formatInvoiceDateTimeStamp = (date = new Date()) => {
     const formatter = new Intl.DateTimeFormat('en-CA', {
       timeZone: 'Asia/Kolkata',
@@ -236,7 +251,7 @@ export default function AdminOrderDetail({ initialOrder }){
             ${stampHtml}
             <div class="invoice-title">Invoice</div>
             <div class="invoice-meta-line">Invoice ID: ${invToUse?.invoiceId || order._id}</div>
-            <div class="invoice-meta-line">Date: ${new Date(order.createdAt).toLocaleString()}</div>
+            <div class="invoice-meta-line">Date: ${formatInvoiceDateTime(order.createdAt)}</div>
           </div>
         </div>
 
