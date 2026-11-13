@@ -34,12 +34,12 @@ export default function GuestOrderDetail({ initialOrder }){
   const toast = useToast();
 
   return (
-    <div className="p-6">
-      <div className="grid md:grid-cols-4 gap-6">
+    <div className="p-3 md:p-4">
+      <div className="grid gap-4 md:grid-cols-4">
         <AdminSidebar />
         <main className="md:col-span-3">
-          <button onClick={()=>router.back()} className="mb-4 px-3 py-1 border rounded">Back</button>
-          <div className="flex items-center gap-3 mt-4">
+          <button onClick={()=>router.back()} className="mb-2 px-3 py-1.5 border rounded text-sm">Back</button>
+          <div className="mt-2 flex flex-wrap items-center gap-2">
             <button onClick={async ()=>{
               // open modal and load invoice if exists
               setShowInvoiceModal(true);
@@ -67,7 +67,7 @@ export default function GuestOrderDetail({ initialOrder }){
                 setInvoiceForm({ status: 'unpaid', paidAmount: 0, balance: total });
               }
               setInvoiceLoading(false);
-            }} className="px-3 py-1 bg-yellow-600 text-white rounded">Update invoice status</button>
+            }} className="px-3 py-1.5 bg-yellow-600 text-white rounded text-sm">Update invoice status</button>
 
             <button onClick={async ()=>{
               // download / print invoice for this guest order. Ensure invoice exists or create a temporary one.
@@ -223,18 +223,20 @@ export default function GuestOrderDetail({ initialOrder }){
                 w.document.close();
                 setTimeout(()=>{ try{ w.focus(); w.print(); }catch(e){} setPrinting(false); },350);
               }catch(e){ console.error('print invoice failed', e); toast?.push?.({ message: 'Unable to print invoice', type: 'error' }); setPrinting(false); }
-            }} className="px-3 py-1 bg-blue-600 text-white rounded">{printing ? 'Printing…' : 'Download Invoice (PDF)'}</button>
+            }} className="px-3 py-1.5 bg-blue-600 text-white rounded text-sm">{printing ? 'Printing…' : 'Download Invoice (PDF)'}</button>
           </div>
 
-          <h1 className="text-2xl font-bold mb-4">Guest Order {formatReferenceId('order', order, true)}</h1>
+          <h1 className="text-xl font-bold mb-3 mt-3">Guest Order {formatReferenceId('order', order, true)}</h1>
 
-          <div className="bg-white p-4 rounded shadow mb-4">
-            <div><strong>Name:</strong> {order.name || order.customerName || ''}</div>
-            <div><strong>Phone:</strong> {order.phone || order.whatsapp || ''}</div>
-            <div><strong>Email:</strong> {order.email || ''}</div>
-            <div className="mt-2"><strong>Address:</strong> {order.address || ''}</div>
-            <div className="mt-2"><strong>Items:</strong>
-              <ul className="list-disc ml-6 mt-2">
+          <div className="mb-3 rounded-lg border border-slate-200 bg-white p-3 shadow-sm text-sm">
+            <div className="grid gap-x-4 gap-y-2 sm:grid-cols-2">
+              <div><strong>Name:</strong> {order.name || order.customerName || ''}</div>
+              <div><strong>Phone:</strong> {order.phone || order.whatsapp || ''}</div>
+              <div><strong>Email:</strong> {order.email || ''}</div>
+              <div><strong>Address:</strong> {order.address || ''}</div>
+            </div>
+            <div className="mt-3 border-t border-slate-100 pt-2"><strong>Items:</strong>
+              <ul className="mt-1 grid gap-x-4 sm:grid-cols-2">
                 {(order.items||[]).map(i=> <li key={i._id || i.sku}>{i.title} × {i.qty} — ₹{i.price}</li>)}
               </ul>
             </div>

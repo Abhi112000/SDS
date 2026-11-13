@@ -3,26 +3,7 @@ import HomeBannerSetting from '@/models/HomeBannerSetting';
 import { getSession } from 'next-auth/react';
 import { getToken } from 'next-auth/jwt';
 
-const defaultSlides = [
-  {
-    imageUrl: '/images/sample1.svg',
-    altText: 'Apsara Pencils box of 12',
-    caption: 'Pencils & everyday essentials',
-    link: '/shop?category=Pencils'
-  },
-  {
-    imageUrl: '/images/sample2.svg',
-    altText: 'Camlin Notebooks collection',
-    caption: 'Notebooks for study and work',
-    link: '/shop?category=Notebooks'
-  },
-  {
-    imageUrl: '/images/sample1.svg',
-    altText: 'Stationery basics for daily use',
-    caption: 'Daily stationery picks',
-    link: '/shop'
-  }
-];
+const defaultSlides = [];
 
 export default async function handler(req, res) {
   await dbConnect();

@@ -31,9 +31,9 @@ export default async function handler(req, res) {
     const { code, subtotal } = req.body;
     if (!code) return res.status(400).json({ ok: false, error: "Code required" });
 
-    // Find coupon
-    const c = await Coupon.findOne({ code: code.toUpperCase() });
+    const c = await Coupon.findOne({ code: String(code).trim().toUpperCase() });
     if (!c || !c.active) return res.status(404).json({ ok: false, error: "Invalid or inactive coupon" });
+    if (Number(c.usedCount || 0) >= Number(c.maxUses ?? 1)) return res.status(400).json({ ok: false, error: "Coupon exhausted" });
 
     // If coupon is private, ensure current user is allowed
     const session = await getSession({ req });
@@ -49,13 +49,15 @@ export default async function handler(req, res) {
 
     // Do NOT reserve/increment usage here. Only validate and compute discount.
     // The final increment (reservation) must happen at order submission to avoid wasting uses.
+    const safeSubtotal = Number(subtotal);
+    if(!Number.isFinite(safeSubtotal) || safeSubtotal < 0) return res.status(400).json({ ok: false, error: "Invalid subtotal" });
     let discount = 0;
     if (c.type === "percent") {
-      discount = Math.round((c.value / 100) * (subtotal || 0));
+      discount = Math.round((c.value / 100) * safeSubtotal);
     } else {
       discount = c.value;
     }
-    if (subtotal && discount > subtotal) discount = subtotal;
+    if (discount > safeSubtotal) discount = safeSubtotal;
 
     return res.status(200).json({
       ok: true,

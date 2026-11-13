@@ -45,7 +45,7 @@ export default function Cart() {
   const effectiveTotal = subtotal - (activeCoupon?.discount || 0);
 
   return (
-    <div className="max-w-7xl mx-auto px-3 py-4 sm:px-4">
+    <div className="max-w-7xl mx-auto px-0 py-1">
       <Breadcrumbs items={[{ label: 'Cart' }]} />
       <div className="flex flex-wrap items-center justify-between gap-2 mb-4">
         <div>
@@ -108,18 +108,20 @@ export default function Cart() {
               </div>
             </div>
           </div>
-          <div className="mt-5 bg-white p-3 rounded-2xl border border-slate-100 shadow-sm offers-panel">
-            <div className="font-semibold mb-3 text-slate-900 text-sm">Offers for you</div>
-            {publicCoupons.length > 0 ? (
-              <div className="flex gap-2 flex-wrap">
-                {publicCoupons.map(c => (
-                  <div key={c._id} className="text-xs bg-green-50 text-green-800 px-2.5 py-1.5 rounded-full font-semibold">{c.code} — {c.type === 'percent' ? `${c.value}%` : `₹${c.value}`}</div>
-                ))}
-              </div>
-            ) : (
-              <div className="text-sm text-slate-500">No coupons available right now.</div>
-            )}
-          </div>
+          <details className="mt-3 rounded-xl border border-slate-200 bg-white px-3 py-2">
+            <summary className="cursor-pointer text-xs font-semibold text-slate-700">Available offers</summary>
+            <div className="pt-2">
+              {publicCoupons.length > 0 ? (
+                <div className="flex gap-2 flex-wrap">
+                  {publicCoupons.map(c => (
+                    <div key={c._id} className="text-xs bg-green-50 text-green-800 px-2.5 py-1.5 rounded-full font-semibold">{c.code} — {c.type === 'percent' ? `${c.value}%` : `₹${c.value}`}</div>
+                  ))}
+                </div>
+              ) : (
+                <div className="text-xs text-slate-500">No coupons available right now.</div>
+              )}
+            </div>
+          </details>
         </div>
       )}
       <OrderModal open={open} onClose={() => setOpen(false)} coupon={cart.coupon || appliedCoupon} />

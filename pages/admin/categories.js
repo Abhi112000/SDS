@@ -11,6 +11,8 @@ export default function AdminCategories({ initial = [] }){
   const [name, setName] = useState('');
   const [parentId, setParentId] = useState('');
   const [busy, setBusy] = useState(false);
+  const [editingId, setEditingId] = useState(null);
+  const [editName, setEditName] = useState('');
   const toast = useToast();
 
   async function load(){
@@ -55,6 +57,21 @@ export default function AdminCategories({ initial = [] }){
     }catch(e){ toast?.push?.({ message: 'Delete failed: ' + (e.message||''), type: 'error' }); }
   }
 
+  async function saveRename(id){
+    const trimmedName = editName.trim();
+    if(!trimmedName) return toast?.push?.({ message: 'Name required', type: 'error' });
+    setBusy(true);
+    try{
+      const res = await fetch(`/api/admin/categories?id=${encodeURIComponent(id)}`, { method: 'PUT', credentials: 'include', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name: trimmedName }) });
+      const body = await res.json();
+      if(!res.ok) throw new Error(body.error || 'Rename failed');
+      setCats(prev => prev.map(category => category._id === id ? { ...category, name: body.name } : category));
+      setEditingId(null);
+      toast?.push?.({ message: 'Category renamed', type: 'success' });
+    }catch(error){ toast?.push?.({ message: error.message || 'Rename failed', type: 'error' }); }
+    finally{ setBusy(false); }
+  }
+
   return (
     <div className="p-6">
       <div className="grid md:grid-cols-4 gap-6">
@@ -81,15 +98,27 @@ export default function AdminCategories({ initial = [] }){
               {parentCategories.map(c => (
                 <li key={c._id} className="border rounded p-3">
                   <div className="flex items-center justify-between gap-3">
-                    <div className="font-semibold">{c.name}</div>
-                    <button className="px-2 py-1 bg-red-600 text-white rounded text-sm" onClick={()=>handleDelete(c._id)}>Delete</button>
+                    {editingId === c._id ? <input autoFocus value={editName} onChange={event=>setEditName(event.target.value)} className="p-1 border rounded" /> : <div className="font-semibold">{c.name}</div>}
+                    <div className="flex gap-2">
+                      {editingId === c._id ? <>
+                        <button disabled={busy} className="px-2 py-1 bg-green-600 text-white rounded text-sm" onClick={()=>saveRename(c._id)}>Save</button>
+                        <button className="px-2 py-1 bg-gray-200 rounded text-sm" onClick={()=>setEditingId(null)}>Cancel</button>
+                      </> : <button className="px-2 py-1 bg-blue-600 text-white rounded text-sm" onClick={()=>{ setEditingId(c._id); setEditName(c.name); }}>Edit</button>}
+                      <button className="px-2 py-1 bg-red-600 text-white rounded text-sm" onClick={()=>handleDelete(c._id)}>Delete</button>
+                    </div>
                   </div>
                   {(childMap[c._id] || []).length > 0 && (
                     <ul className="mt-2 ml-4 space-y-1">
                       {childMap[c._id].map(sub => (
                         <li key={sub._id} className="flex items-center justify-between border-l pl-3 py-1">
-                          <span>{sub.name}</span>
-                          <button className="px-2 py-1 bg-red-600 text-white rounded text-xs" onClick={()=>handleDelete(sub._id)}>Delete</button>
+                          {editingId === sub._id ? <input autoFocus value={editName} onChange={event=>setEditName(event.target.value)} className="p-1 border rounded" /> : <span>{sub.name}</span>}
+                          <div className="flex gap-2">
+                            {editingId === sub._id ? <>
+                              <button disabled={busy} className="px-2 py-1 bg-green-600 text-white rounded text-xs" onClick={()=>saveRename(sub._id)}>Save</button>
+                              <button className="px-2 py-1 bg-gray-200 rounded text-xs" onClick={()=>setEditingId(null)}>Cancel</button>
+                            </> : <button className="px-2 py-1 bg-blue-600 text-white rounded text-xs" onClick={()=>{ setEditingId(sub._id); setEditName(sub.name); }}>Edit</button>}
+                            <button className="px-2 py-1 bg-red-600 text-white rounded text-xs" onClick={()=>handleDelete(sub._id)}>Delete</button>
+                          </div>
                         </li>
                       ))}
                     </ul>

@@ -1,10 +1,12 @@
-import { getSession, useSession } from "next-auth/react";
+import { getSession } from "next-auth/react";
 import { useState } from "react";
+import Link from 'next/link';
+import dbConnect from '@/lib/mongodb';
+import User from '@/models/User';
 import { useToast } from '@/components/Toast';
 import { authRedirect } from '@/lib/authRedirect';
 
 export default function Profile({ user }) {
-  const { data: session } = useSession();
   const [form, setForm] = useState({
     name: user?.name || "",
     email: user?.email || "",
@@ -45,7 +47,9 @@ export default function Profile({ user }) {
         body: JSON.stringify(normalizedForm),
       });
 
-      if (!res.ok) throw new Error("Failed to update profile");
+      const result = await res.json();
+      if (!res.ok) throw new Error(result.error || "Failed to update profile");
+      setForm(current => ({ ...current, ...result.user }));
       toast?.push?.({ message: 'Profile updated successfully!', type: 'success' });
       setEditing(false);
     } catch (err) {
@@ -60,6 +64,7 @@ export default function Profile({ user }) {
     <div className="p-6">
       <div className="flex items-center justify-between mb-4">
         <h1 className="text-2xl font-bold">Profile</h1>
+        <Link href="/dashboard" className="rounded border px-3 py-2 text-sm hover:bg-gray-50">Back to dashboard</Link>
         {!editing && (
           <button onClick={() => setEditing(true)} className="px-4 py-2 btn-primary rounded">Edit</button>
         )}
@@ -148,5 +153,21 @@ export async function getServerSideProps(ctx) {
     return { redirect: { destination: '/admin', permanent: false } };
   }
 
-  return { redirect: { destination: '/dashboard', permanent: false } };
+  await dbConnect();
+  const user = await User.findOne({ email: session.user.email })
+    .select('name email phone whatsapp address locationUrl')
+    .lean();
+  if (!user) return { redirect: { destination: '/login', permanent: false } };
+  return {
+    props: {
+      user: {
+        name: user.name || '',
+        email: user.email,
+        phone: user.phone || '',
+        whatsapp: user.whatsapp || '',
+        address: user.address || '',
+        locationUrl: user.locationUrl || ''
+      }
+    }
+  };
 }

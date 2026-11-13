@@ -36,7 +36,15 @@ export default async function handler(req, res){
   if(req.method === 'PUT'){
     try{
       const { id } = req.query;
-      const updated = await Category.findByIdAndUpdate(id, req.body, { new: true });
+      if(!id) return res.status(400).json({ error: 'id required' });
+      const name = String(req.body?.name || '').trim();
+      if(!name) return res.status(400).json({ error: 'name required' });
+      const current = await Category.findById(id);
+      if(!current) return res.status(404).json({ error: 'Category not found' });
+      const duplicate = await Category.findOne({ _id: { $ne: current._id }, parentId: current.parentId, name }).lean();
+      if(duplicate) return res.status(409).json({ error: 'Category already exists' });
+      current.name = name;
+      const updated = await current.save();
       return res.status(200).json(updated);
     }catch(e){ return res.status(500).json({ error: e.message || 'update failed' }); }
   }

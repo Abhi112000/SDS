@@ -15,11 +15,15 @@ export default function ProductCard({ product }) {
     .trim() || 'Product';
   function pickSize(item, size){
     if(!item) return null;
-    if(typeof item === 'string') return item;
-    if(typeof item === 'object') return item.url || item[size] || item.card || item.large || item.thumb || null;
-    return null;
+    const image = typeof item === 'string'
+      ? item
+      : (typeof item === 'object' ? item.url || item[size] || item.card || item.large || item.thumb || null : null);
+    return typeof image === 'string' && /\/images\/sample\d*\.svg(?:$|[?#])/i.test(image) ? null : image;
   }
-  const img = pickSize(product.image, 'card') || pickSize(product.images && product.images[0], 'card') || '/images/sample1.svg';
+  const img = pickSize(product.image, 'card') || pickSize(product.images && product.images[0], 'card');
+  const category = product.category && !/^[a-f\d]{24}$/i.test(String(product.category))
+    ? String(product.category)
+    : '';
   const price = typeof product.price === 'number' ? product.price : (product.price || 0);
   const originalPrice = typeof product.originalPrice === 'number' ? product.originalPrice : null;
   const salePrice = typeof product.salePrice === 'number' ? product.salePrice : (product.salePrice ? Number(product.salePrice) : null);
@@ -63,29 +67,27 @@ export default function ProductCard({ product }) {
   return (
   <article className="product-card">
     {isOnSale ? (
-      <div className="product-card-sale-badge">SALE</div>
+      <div className="product-card-sale-badge"><span aria-hidden="true">✦</span> SALE</div>
     ) : null}
     {percentOff ? (
       <div className="product-card-offer-badge">-{percentOff}%</div>
     ) : null}
       <Link href={`/product/${id}`} onClick={recordProductVisit} className="product-card-image-link">
         <div className="product-card-image-panel">
-          {/* responsive srcSet: thumb -> card -> large if available */}
-          {(() => {
-            const pimg = product.image || (product.images && product.images[0]);
-            const thumb = pickSize(pimg, 'thumb');
-            const card = pickSize(pimg, 'card') || thumb || img;
-            const large = pickSize(pimg, 'large') || card;
-            const srcSet = `${thumb ? `${thumb} 200w,` : ''} ${card ? `${card} 600w,` : ''} ${large ? `${large} 1200w` : ''}`;
-            return <img src={card || img} srcSet={srcSet} sizes="(max-width: 640px) 100vw, 33vw" loading="lazy" alt={title} className="product-card-image" onError={(e)=>{ e.currentTarget.onerror = null; e.currentTarget.src = '/images/sample1.svg'; e.currentTarget.srcset = ''; }} />;
-          })()}
+          {img ? (
+            <img src={img} sizes="(max-width: 640px) 50vw, (max-width: 1024px) 33vw, 25vw" loading="lazy" alt={title} className="product-card-image" onError={(e)=>{ e.currentTarget.onerror = null; e.currentTarget.remove(); e.currentTarget.parentElement?.classList.add('is-missing'); }} />
+          ) : null}
+          <div className="product-card-image-placeholder" aria-label={`${title} image unavailable`}>
+            <span aria-hidden="true">✎</span>
+            <small>Everyday essentials</small>
+          </div>
         </div>
       </Link>
 
       <div className="product-card-body">
         <div className="product-title-stack">
+          {category && <span className="product-category-badge">{category}</span>}
           <h3 className="product-title" title={title}>{title}</h3>
-          {product.category && <span className="product-category-badge">{product.category}</span>}
         </div>
           <div className="product-price-row">
             {isOnSale && salePrice ? (
@@ -112,7 +114,7 @@ export default function ProductCard({ product }) {
               setTimeout(() => setJustAdded(false), 2500);
             }}
             className="product-add-button"
-          >Add to Cart</button>
+          >{justAdded ? <><span aria-hidden="true">✓</span> Added</> : <>Add to bag <span aria-hidden="true">+</span></>}</button>
 
           {(inCart || justAdded) && (
             <div className="mt-2 flex items-center gap-1 cart-remove-row">

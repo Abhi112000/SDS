@@ -1,6 +1,6 @@
 import { getSession } from 'next-auth/react';
 import dbConnect from '@/lib/mongodb';
-import Inventory from '@/models/Inventory';
+import Product from '@/models/Product';
 
 export default async function handler(req, res){
   await dbConnect();
@@ -15,8 +15,13 @@ export default async function handler(req, res){
   try{
     const { items } = req.body; // [{ id, minStockLevel }, ...]
     if(!Array.isArray(items) || items.length === 0) return res.status(400).json({ error: 'items required' });
-    const ops = items.map(i => ({ updateOne: { filter: { _id: i.id }, update: { $set: { minStockLevel: Number(i.minStockLevel || 0) } } } }));
-    const result = await Inventory.bulkWrite(ops);
+    const invalidItem = items.find(i => !Number.isFinite(Number(i.minStockLevel)) || Number(i.minStockLevel) < 0);
+    if(invalidItem) return res.status(400).json({ error: 'minStockLevel must be a non-negative number' });
+    const ops = items.map(i => {
+      const value = Number(i.minStockLevel);
+      return { updateOne: { filter: { _id: i.id }, update: { $set: { minStockLevel: value } } } };
+    });
+    const result = await Product.bulkWrite(ops);
     return res.json({ ok: true, result });
   }catch(e){ console.error(e); return res.status(500).json({ error: 'internal' }); }
 }

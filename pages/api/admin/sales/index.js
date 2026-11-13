@@ -2,9 +2,10 @@ import { getSession } from 'next-auth/react';
 import { getToken } from 'next-auth/jwt';
 import dbConnect from '@/lib/mongodb';
 import mongoose from 'mongoose';
-import Inventory from '@/models/Inventory';
+import Product from '@/models/Product';
 import Sale from '@/models/Sale';
 import pusher from '@/lib/pusher';
+import { recordSale } from '@/lib/recordSale';
 
 export default async function handler(req, res){
   await dbConnect();
@@ -22,69 +23,21 @@ export default async function handler(req, res){
     try{
       const { itemId, sellingPrice, quantity, timestamp, note } = req.body;
       if(!itemId) return res.status(400).json({ error: 'itemId required' });
-      const qty = parseInt(quantity, 10) || 0;
-      if(qty <= 0) return res.status(400).json({ error: 'quantity must be > 0' });
-  const sellPrice = Number(sellingPrice || 0);
-
-  // load inventory item
-  const item = await Inventory.findById(itemId).lean();
+      if(!mongoose.Types.ObjectId.isValid(itemId)) return res.status(400).json({ error: 'Invalid itemId' });
+      const item = await Product.findById(itemId).lean();
       if(!item) return res.status(404).json({ error: 'Item not found' });
-      if((item.stock || 0) < qty) return res.status(409).json({ error: 'Insufficient stock' });
-
-  // item.costPrice and sellingPrice stored as Decimal128; parse to Number for math
-  const costPrice = Number(item.costPrice ? item.costPrice.toString() : 0);
-  const profit = (sellPrice - costPrice) * qty; // number
-
-      // try atomic decrement: only decrement if sufficient stock remains
-      // atomically decrement stock only
-      const updated = await Inventory.findOneAndUpdate(
-        { _id: itemId, stock: { $gte: qty } },
-        { $inc: { stock: -qty } },
-        { new: true }
-      ).lean();
-
-      if(!updated) return res.status(409).json({ error: 'Insufficient stock (concurrent)' });
-
-      // update lifetimeProfit safely by computing new value and setting Decimal128
-      try{
-        const currentLifetime = Number(updated.lifetimeProfit ? updated.lifetimeProfit.toString() : 0);
-        const newLifetime = currentLifetime + profit;
-        await Inventory.findByIdAndUpdate(itemId, { $set: { lifetimeProfit: mongoose.Types.Decimal128.fromString(newLifetime.toFixed(2)) } });
-      }catch(e){ console.warn('failed to update lifetimeProfit', e); }
-
-      // create sale record with Decimal128 monetary fields
-      const sale = await Sale.create({
-        itemId,
-        sku: item.sku,
-        name: item.name,
-        costPrice: mongoose.Types.Decimal128.fromString(costPrice.toFixed(2)),
-        sellingPrice: mongoose.Types.Decimal128.fromString(sellPrice.toFixed(2)),
-        quantity: qty,
-        profit: mongoose.Types.Decimal128.fromString(profit.toFixed(2)),
-        actorId: userId,
-        timestamp: timestamp ? new Date(timestamp) : new Date(),
-        note,
-        source: 'admin'
-      });
-
-      // broadcast update
-      try{ await pusher.trigger('inventory', 'inventory.update', { id: itemId, stock: updated.stock, lowStock: updated.stock < (updated.minStockLevel||0) }); }catch(e){/* ignore */}
-
-      // convert Decimal128 fields to numbers for response
-      const saleObj = sale.toObject ? sale.toObject() : sale;
+      const { sale, product } = await recordSale({ product: item, sellingPrice, quantity, actorId: userId, timestamp, note });
+      try{ await pusher.trigger('inventory', 'inventory.update', { id: String(product._id), stock: product.stock, lowStock: product.stock < (product.minStockLevel || 0) }); }catch(e){ console.warn('inventory update notification failed', e?.message || e); }
+      const saleObj = sale.toObject();
       saleObj.costPrice = Number(saleObj.costPrice.toString());
       saleObj.sellingPrice = Number(saleObj.sellingPrice.toString());
       saleObj.profit = Number(saleObj.profit.toString());
-
-      const inv = { ...updated };
-      inv.costPrice = Number(inv.costPrice ? inv.costPrice.toString() : 0);
-      inv.sellingPrice = Number(inv.sellingPrice ? inv.sellingPrice.toString() : 0);
-      inv.lifetimeProfit = Number(inv.lifetimeProfit ? inv.lifetimeProfit.toString() : 0);
-
-      return res.status(201).json({ sale: saleObj, inventory: inv });
+      return res.status(201).json({ sale: saleObj, inventory: product });
     }catch(e){
       console.error('create sale failed', e);
-      return res.status(500).json({ error: 'internal_error' });
+      if(e.message === 'Insufficient stock') return res.status(409).json({ error: e.message });
+      if(e.message?.startsWith('Quantity') || e.message?.startsWith('Selling price')) return res.status(400).json({ error: e.message });
+      return res.status(500).json({ error: 'Unable to record sale atomically' });
     }
   }
   // Support listing sales for admin via GET
@@ -97,16 +50,17 @@ export default async function handler(req, res){
         const filter = {};
         const esc = String(q).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
         const prefRegex = new RegExp('^' + esc, 'i');
-        filter.$or = [{ name: prefRegex }, { sku: prefRegex }];
+        filter.$or = [{ title: prefRegex }, { sku: prefRegex }];
         const skip = (Number(page) - 1) * Number(limit);
-        const items = await Inventory.find(filter).sort({ name: 1 }).skip(skip).limit(Number(limit)).lean();
-        const total = await Inventory.countDocuments(filter);
-        // convert Decimal128 and enrich category name if possible
+        const items = await Product.find(filter).sort({ title: 1 }).skip(skip).limit(Number(limit)).lean();
+        const total = await Product.countDocuments(filter);
         const cleaned = items.map(i => ({
           ...i,
-          costPrice: i.costPrice ? Number(i.costPrice.toString()) : 0,
-          sellingPrice: i.sellingPrice ? Number(i.sellingPrice.toString()) : 0,
-          lifetimeProfit: i.lifetimeProfit ? Number(i.lifetimeProfit.toString()) : 0
+          id: i._id,
+          name: i.title,
+          costPrice: Number(i.originalPrice || 0),
+          sellingPrice: Number(i.salePrice !== undefined && (i.onSale || i.tags?.includes('SALE!')) ? i.salePrice : i.price || 0),
+          lifetimeProfit: Number(i.lifetimeProfit || 0)
         }));
         return res.json({ items: cleaned, total, page: Number(page), limit: Number(limit) });
       }

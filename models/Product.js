@@ -20,6 +20,8 @@ const ProductSchema = new mongoose.Schema({
   images: [mongoose.Schema.Types.Mixed],
   category: String,
   stock: { type: Number, default: 9999 },
+  minStockLevel: { type: Number, default: 0 },
+  lifetimeProfit: { type: Number, default: 0 },
   createdAt: { type: Date, default: Date.now }
 });
 const Product = (mongoose && mongoose.models && mongoose.models.Product) ? mongoose.models.Product : mongoose.model('Product', ProductSchema);

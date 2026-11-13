@@ -3,6 +3,7 @@ const path = require('path');
 
 const nextConfig = {
   reactStrictMode: true,
+  distDir: process.env.NODE_ENV === 'development' ? '.next-dev' : '.next',
   webpack: (config) => {
     config.resolve.alias = {
       ...(config.resolve.alias || {}),

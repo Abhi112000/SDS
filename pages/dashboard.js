@@ -141,7 +141,10 @@ export default function Dashboard({ user, orders }) {
       <button onClick={() => router.back()} className="mb-4 px-4 py-2 btn-secondary rounded">Back</button>
       <h1 className="text-2xl font-bold mb-4">My Dashboard</h1>
       <section className="mb-6">
-        <h2 className="text-lg font-semibold">Profile</h2>
+        <div className="mb-2 flex items-center justify-between gap-3">
+          <h2 className="text-lg font-semibold">Profile</h2>
+          <a href="/profile" className="rounded border px-3 py-1.5 text-sm text-blue-700 hover:bg-blue-50">Edit profile</a>
+        </div>
         <div className="bg-white p-4 rounded shadow max-w-xl">
           <p><strong>Name:</strong> {user?.name}</p>
           <p><strong>Email:</strong> {user?.email}</p>

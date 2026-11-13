@@ -45,13 +45,16 @@ export default function OrderModal({ open, onClose, coupon = null }) {
     }
   }, [session, sessionStatus, open]);
 
-  const sendWhatsAppOrder = (header, orderId, orderKind) => {
+  const sendWhatsAppOrder = (header, orderId, orderKind, confirmedOrder = {}) => {
     const ownerWhatsapp = process.env.NEXT_PUBLIC_OWNER_WHATSAPP_NUMBER || process.env.OWNER_WHATSAPP_NUMBER || '919818630972';
     const whatsappPhone = String(ownerWhatsapp).replace(/\D/g, '');
 
-    const cartLines = (cart.items || []).map((it) => `${it.title} x ${it.qty} - ₹${it.price}`).join('\n');
-    const discount = Number(coupon?.discountAmount ?? coupon?.discount ?? 0);
-    const total = Math.max(subtotal - discount + deliveryCharge, 0);
+    const orderItems = confirmedOrder.items || cart.items || [];
+    const orderSubtotal = Number(confirmedOrder.subtotal ?? subtotal);
+    const orderDeliveryCharge = Number(confirmedOrder.deliveryCharge ?? deliveryCharge);
+    const discount = Number(confirmedOrder.coupon?.discountAmount ?? coupon?.discountAmount ?? coupon?.discount ?? 0);
+    const total = Number(confirmedOrder.total ?? Math.max(orderSubtotal - discount + orderDeliveryCharge, 0));
+    const cartLines = orderItems.map((it) => `${it.title} x ${it.qty} - ₹${it.price}`).join('\n');
     const message = [
       `${header}`,
       orderId ? `Order ID: ${orderId}` : '',
@@ -68,7 +71,8 @@ export default function OrderModal({ open, onClose, coupon = null }) {
       'Order Items:',
       cartLines || 'No items selected',
       '',
-      `Subtotal: ₹${subtotal}`,
+      `Subtotal: ₹${orderSubtotal}`,
+      `Delivery: ₹${orderDeliveryCharge}`,
       `Discount: -₹${discount}`,
       `Total: ₹${total}`
     ].filter(Boolean).join('\n');
@@ -103,7 +107,7 @@ export default function OrderModal({ open, onClose, coupon = null }) {
       if (res.ok) {
         const orderRef = `GUEST-${res.orderId}`;
         clear();
-        sendWhatsAppOrder('GUEST ORDER', orderRef, 'Guest');
+        sendWhatsAppOrder('GUEST ORDER', orderRef, 'Guest', res);
         toast?.push?.({ message: 'Guest order prepared. Order ID: ' + orderRef, type: 'success' });
       } else {
         toast?.push?.({ message: 'Error placing order: ' + (res.error || 'unknown'), type: 'error' });
@@ -134,7 +138,7 @@ export default function OrderModal({ open, onClose, coupon = null }) {
       if(res.ok){
         const orderRef = `ACCOUNT-${res.orderId}`;
         clear();
-        sendWhatsAppOrder('ACCOUNT HOLDER ORDER', orderRef, 'Account Holder');
+        sendWhatsAppOrder('ACCOUNT HOLDER ORDER', orderRef, 'Account Holder', res);
         toast?.push?.({ message: 'Order placed. Order ID: ' + orderRef, type: 'success' });
       }
       else toast?.push?.({ message: 'Error: ' + (res.error||'unknown'), type: 'error' });

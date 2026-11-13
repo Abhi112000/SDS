@@ -37,13 +37,18 @@ export default function ProductPage({ product }){
     router.push('/cart');
   }
 
-  const imgs = [product.image, ...(product.images || [])].filter(Boolean).filter((v,i,a)=> a.indexOf(v) === i);
+  const imgs = [product.image, ...(product.images || [])]
+    .filter(Boolean)
+    .filter((v,i,a)=> a.indexOf(v) === i)
+    .filter(item => pickSize(item, 'large') || pickSize(item, 'card') || pickSize(item, 'thumb'));
+  const mainImage = pickSize(imgs[0], 'large') || pickSize(imgs[0], 'card');
 
   function pickSize(item, size){
     if(!item) return null;
-    if(typeof item === 'string') return item;
-    if(typeof item === 'object') return item.url || item[size] || item.card || item.large || item.thumb || null;
-    return null;
+    const image = typeof item === 'string'
+      ? item
+      : (typeof item === 'object' ? item.url || item[size] || item.card || item.large || item.thumb || null : null);
+    return typeof image === 'string' && /\/images\/sample\d*\.svg(?:$|[?#])/i.test(image) ? null : image;
   }
 
   function openGalleryAt(idx){ setGalleryIndex(idx); setShowGallery(true); }
@@ -87,13 +92,13 @@ export default function ProductPage({ product }){
 
       <div className="product-detail-layout">
         <section className="product-detail-gallery-panel">
-          <div className="product-detail-image-frame">
-            {(() => {
-              const main = pickSize(imgs[0], 'large') || pickSize(imgs[0], 'card') || '/images/sample1.svg';
-              const thumb0 = pickSize(imgs[0], 'thumb') || pickSize(imgs[0], 'card') || main;
-              const srcSet = `${thumb0 ? `${thumb0} 200w,` : ''} ${main ? `${main} 1200w` : ''}`;
-              return <img src={main} srcSet={srcSet} sizes="(max-width:640px) 100vw, 50vw" loading="lazy" alt={product.title || product.name} className="product-detail-main-image" onError={(e)=>{ e.currentTarget.onerror = null; e.currentTarget.src = '/images/sample1.svg'; e.currentTarget.srcset = ''; }} />;
-            })()}
+          <div className={`product-detail-image-frame${mainImage ? '' : ' is-missing'}`}>
+            {mainImage && <img src={mainImage} sizes="(max-width:640px) 100vw, 50vw" loading="lazy" alt={product.title || product.name} className="product-detail-main-image" onError={(e)=>{ e.currentTarget.onerror = null; e.currentTarget.parentElement?.classList.add('is-missing'); e.currentTarget.remove(); }} />}
+            <div className="product-detail-image-placeholder" aria-label="Product image unavailable">
+              <span aria-hidden="true">✎</span>
+              <strong>{product.title || product.name}</strong>
+              <small>Everyday essentials</small>
+            </div>
           </div>
           {imgs.length > 1 && (
             <div className="product-gallery-thumbs">
@@ -101,7 +106,7 @@ export default function ProductPage({ product }){
                 const t = pickSize(item, 'thumb') || pickSize(item, 'card') || pickSize(item, 'large');
                 return (
                   <button key={i} onClick={()=>openGalleryAt(i)} className="product-gallery-thumb">
-                    <img src={t} className="product-gallery-thumb-image" onError={(e)=>{ e.currentTarget.onerror = null; e.currentTarget.src = '/images/sample1.svg'; }} />
+                    <img src={t} alt={`${product.title || product.name} view ${i + 1}`} className="product-gallery-thumb-image" onError={(e)=>{ e.currentTarget.onerror = null; e.currentTarget.remove(); }} />
                   </button>
                 );
               })}

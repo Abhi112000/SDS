@@ -16,6 +16,12 @@ import { authRedirect } from '@/lib/authRedirect';
 
 // include credentials for admin APIs (session cookie) so server can authenticate requests
 const fetcher = url => fetch(url, { credentials: 'include' }).then(r => r.json());
+const ledgerSummaryFetcher = async url => {
+  const response = await fetch(url, { credentials: 'include' });
+  const data = await response.json();
+  if (!response.ok) throw new Error(data?.error || 'Unable to load ledger balances');
+  return data;
+};
 
 function formatInvoiceDateTime(value) {
   const date = value ? new Date(value) : new Date();
@@ -32,7 +38,23 @@ function formatInvoiceDateTime(value) {
   }).format(date);
 }
 
+function getBusinessDate() {
+  const parts = new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'Asia/Kolkata',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit'
+  }).formatToParts(new Date());
+  const values = Object.fromEntries(parts.map(part => [part.type, part.value]));
+  return `${values.year}-${values.month}-${values.day}`;
+}
+
+function formatLedgerMoney(value) {
+  return `₹${(Number(value || 0) / 100).toFixed(2)}`;
+}
+
 export default function Admin({ dbError = false, errorMessage = '' }){
+  const businessDate = getBusinessDate();
   const { data: orders } = useSWR('/api/orders?admin=true', fetcher);
   const { data: messages } = useSWR('/api/messages', fetcher);
   const { data: guestOrders } = useSWR('/api/admin/guest-orders', fetcher);
@@ -55,6 +77,11 @@ export default function Admin({ dbError = false, errorMessage = '' }){
   const { data: invoices, mutate: mutateInvoices } = useSWR('/api/admin/invoices', fetcher);
   const { data: invoiceSettings, mutate: mutateInvoiceSettings } = useSWR('/api/admin/invoice-settings', fetcher);
   const { data: visitorStats, mutate: mutateVisitorStats } = useSWR('/api/admin/visitors', fetcher);
+  const { data: ledgerBalances, error: ledgerBalancesError, isLoading: ledgerBalancesLoading } = useSWR(
+    `/api/admin/ledger/summary?to=${businessDate}`,
+    ledgerSummaryFetcher,
+    { revalidateOnMount: true, refreshInterval: 10000 }
+  );
   const [selectedInvoice, setSelectedInvoice] = useState(null);
   const [expandedOrders, setExpandedOrders] = useState({});
   const [settingsDraft, setSettingsDraft] = useState(null);
@@ -407,8 +434,35 @@ export default function Admin({ dbError = false, errorMessage = '' }){
             </div>
           </div>
 
+          <Link href="/admin/ledger" className="mb-4 flex items-center justify-between gap-4 rounded-xl border border-blue-200 bg-blue-50 p-3 sm:p-4 transition hover:border-blue-400 hover:bg-blue-100">
+            <div>
+              <h2 className="text-base font-semibold text-blue-950">Ledger Book</h2>
+              <p className="mt-1 text-xs text-blue-800">Manage customer balances, supplier bills, expenses and reports.</p>
+            </div>
+            <span className="shrink-0 rounded-lg bg-blue-700 px-3 py-2 text-xs font-semibold text-white">Open →</span>
+          </Link>
+          <section aria-label="Ledger balances" className="mb-4 grid gap-2 sm:grid-cols-3">
+            {ledgerBalancesError && <p role="alert" className="text-xs text-red-700 sm:col-span-3">Ledger balances could not be loaded: {ledgerBalancesError.message}</p>}
+            <Link href="/admin/ledger" className="rounded-lg border bg-white p-3 shadow-sm hover:border-blue-300">
+              <div className="text-xs text-gray-500">Shop balance</div>
+              <div className="mt-1 text-lg font-semibold">{ledgerBalances ? formatLedgerMoney((ledgerBalances.closingBalances?.cash || 0) + (ledgerBalances.closingBalances?.upi || 0)) : ledgerBalancesLoading ? 'Loading…' : '—'}</div>
+              <div className="text-xs text-gray-600">Cash {ledgerBalances ? formatLedgerMoney(ledgerBalances.closingBalances?.cash) : '—'} · UPI {ledgerBalances ? formatLedgerMoney(ledgerBalances.closingBalances?.upi) : '—'}</div>
+            </Link>
+            <Link href="/admin/ledger" className="rounded-lg border bg-white p-3 shadow-sm hover:border-blue-300">
+              <div className="text-xs text-gray-500">Customer outstanding</div>
+              <div className="mt-1 text-lg font-semibold">{ledgerBalances ? formatLedgerMoney(ledgerBalances.customerOutstandingPaise) : ledgerBalancesLoading ? 'Loading…' : '—'}</div>
+            </Link>
+            <Link href="/admin/ledger" className="rounded-lg border bg-white p-3 shadow-sm hover:border-blue-300">
+              <div className="text-xs text-gray-500">Supplier payable</div>
+              <div className="mt-1 text-lg font-semibold">{ledgerBalances ? formatLedgerMoney(ledgerBalances.supplierOutstandingPaise) : ledgerBalancesLoading ? 'Loading…' : '—'}</div>
+            </Link>
+          </section>
+
           <section className="mb-6">
-            <h2 className="text-lg font-semibold mb-2">Profile</h2>
+            <div className="mb-2 flex items-center justify-between gap-3">
+              <h2 className="text-lg font-semibold">Profile</h2>
+              <Link href="/admin/profile" className="rounded border px-3 py-1.5 text-sm text-blue-700 hover:bg-blue-50">Edit profile</Link>
+            </div>
             <div className="bg-white p-4 rounded shadow max-w-xl">
               <p><strong>Name:</strong> {session?.user?.name || '-'}</p>
               <p><strong>Email:</strong> {session?.user?.email || '-'}</p>
@@ -417,8 +471,8 @@ export default function Admin({ dbError = false, errorMessage = '' }){
             </div>
           </section>
       {/* Quick add removed — use /admin/products for full product creation */}
-      <div className="grid grid-cols-4 gap-4 mb-6">
-        <div className="bg-white p-4 rounded shadow">Total Orders: {Array.isArray(orders) ? orders.length : (analytics?.orders ?? '-')}</div>
+      <div className="grid grid-cols-1 gap-3 mb-4 sm:grid-cols-2 xl:grid-cols-4">
+        <div className="bg-white p-4 rounded shadow">Total Orders: {orders?.total ?? analytics?.orders ?? '-'}</div>
         <div className="bg-white p-4 rounded shadow">Total Products: {productsList ? productsList.length : '-'}</div>
         <div className="bg-white p-4 rounded shadow">Total Users: {Array.isArray(users?.users) ? users.users.length : (analytics?.users ?? '-')}</div>
         <div className="bg-white p-4 rounded shadow">
@@ -427,8 +481,8 @@ export default function Admin({ dbError = false, errorMessage = '' }){
             {(() => {
               try{
                 const since = Date.now() - (24 * 60 * 60 * 1000);
-                const userNew = Array.isArray(orders) ? orders.filter(o => new Date(o.createdAt).getTime() >= since).length : 0;
-                const guestNew = Array.isArray(guestOrders) ? guestOrders.filter(o => new Date(o.createdAt).getTime() >= since).length : 0;
+                const userNew = Array.isArray(orders?.orders) ? orders.orders.filter(o => new Date(o.createdAt).getTime() >= since).length : 0;
+                const guestNew = Array.isArray(guestOrders?.orders) ? guestOrders.orders.filter(o => new Date(o.createdAt).getTime() >= since).length : 0;
                 const totalNew = userNew + guestNew;
                 return (<div><div>Total: {totalNew}</div><div className="text-xs text-gray-600">User orders: {userNew}</div><div className="text-xs text-gray-600">Guest orders: {guestNew}</div></div>);
               }catch(e){ return <div>-</div>; }

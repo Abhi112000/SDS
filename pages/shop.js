@@ -1,15 +1,11 @@
-import Link from "next/link";
 import Breadcrumbs from '../components/Breadcrumbs';
-import { useRouter } from 'next/router';
 import ProductCard from "../components/ProductCard";
 import dbConnect from '@/lib/dbConnect';
 import Product from '@/models/Product';
-import Category from '@/models/Category';
 import { useSession } from 'next-auth/react';
 import { useEffect, useMemo, useRef, useState } from 'react';
 
 export default function Shop({ products = [], categories = [], q = '', category = '' }) {
-  const router = useRouter();
   const { data: session } = useSession();
   const resultsRef = useRef(null);
   const pageSize = 20;
@@ -213,19 +209,17 @@ export default function Shop({ products = [], categories = [], q = '', category 
   return (
     <main className="shop-shell max-w-7xl mx-auto px-3 py-3 md:px-4 md:py-4">
       <Breadcrumbs items={[{ label: 'Shop' }]} />
-      <div className="flex flex-wrap items-center justify-between gap-3 mb-3 md:mb-4">
+      <div className="flex flex-wrap items-center justify-between gap-2 mb-2 md:mb-3">
         <div>
-          <div className="page-section-kicker text-[10px] md:text-xs">Storefront</div>
-          <h1 className="text-2xl md:text-3xl font-bold text-gray-800 mt-1">Our Products</h1>
+          <h1 className="text-xl md:text-2xl font-bold text-gray-800">Shop</h1>
         </div>
-        <button onClick={() => router.back()} className="mb-1 px-3 py-1.5 btn-secondary rounded text-sm">Back</button>
       </div>
 
-      <section className="form-panel shop-filters-panel p-2.5 md:p-3 mb-3 md:mb-4">
+      <section className="form-panel shop-filters-panel p-2 md:p-2.5 mb-2 md:mb-3">
         <form onSubmit={submitFilter} className="flex flex-col gap-3 md:gap-3">
-          <div className="flex flex-col md:flex-row gap-2.5 items-stretch md:items-center">
+          <div className="flex gap-2 items-center">
             <label className="sr-only" htmlFor="product-search">Search products</label>
-            <div className="relative flex-1 min-w-[210px]">
+            <div className="relative flex-1 min-w-0">
               <input id="product-search" placeholder="Search products" value={search} onChange={(e)=>{ setSearch(e.target.value); setPage(1); setShowSuggestions(true); }} onFocus={()=>setShowSuggestions(true)} onBlur={()=>setTimeout(()=>setShowSuggestions(false), 120)} className="form-field w-full text-sm py-2.5" />
               {showSuggestions && suggestionItems.length > 0 && (
                 <div className="absolute z-30 left-0 right-0 top-full mt-1 bg-white border rounded shadow-xl max-h-72 overflow-auto">
@@ -238,14 +232,12 @@ export default function Shop({ products = [], categories = [], q = '', category 
                 </div>
               )}
             </div>
-            <button className="px-3 py-2.5 btn-primary rounded-lg min-w-[110px] text-sm">Search</button>
+            <button className="px-3 py-2 btn-primary rounded-lg text-sm">Search</button>
           </div>
 
-          <div className="flex items-center justify-between gap-2 md:gap-3">
-            <div className="flex items-center gap-2">
-              <span className="inline-flex h-2 w-2 rounded-full bg-primary"></span>
-              <span className="text-[10px] md:text-xs font-black uppercase tracking-[0.2em] text-slate-500">Shop by collection</span>
-            </div>
+          <div className="flex items-center justify-between gap-2">
+            <button type="button" onClick={() => setMobileFilterOpen(true)} className="text-xs font-semibold text-slate-700 hover:text-primary lg:hidden">Browse categories</button>
+            <span className="hidden text-xs font-semibold text-slate-500 lg:inline">Categories</span>
             <div className="flex items-center gap-2">
               {selectedCats.length > 0 && (
                 <button type="button" onClick={clearCategories} className="text-[10px] md:text-[11px] font-bold text-primary hover:underline">
@@ -257,7 +249,7 @@ export default function Shop({ products = [], categories = [], q = '', category 
 
           <div className={`lg:hidden fixed inset-0 z-40 ${mobileFilterOpen ? 'pointer-events-auto' : 'pointer-events-none'}`} aria-hidden={!mobileFilterOpen}>
             <div className={`absolute inset-0 bg-slate-900/40 transition-opacity ${mobileFilterOpen ? 'opacity-100' : 'opacity-0'}`} onClick={() => setMobileFilterOpen(false)} />
-            <aside className={`absolute left-0 top-[12%] h-[88%] w-[60%] max-w-sm bg-white shadow-2xl transform transition-transform duration-200 ${mobileFilterOpen ? 'translate-x-0' : '-translate-x-full'} relative flex flex-col rounded-r-2xl overflow-hidden`}>
+            <aside className={`absolute left-0 top-[8%] h-[92%] w-[85vw] max-w-sm bg-white shadow-2xl transform transition-transform duration-200 ${mobileFilterOpen ? 'translate-x-0' : '-translate-x-full'} relative flex flex-col rounded-r-2xl overflow-hidden`}>
               <div className="sticky top-0 z-20 flex items-center justify-between border-b border-slate-200 bg-white px-3 py-2 pr-11 shadow-[0_1px_0_rgba(15,23,42,0.04)]">
                 <h2 className="text-[10px] font-bold uppercase tracking-[0.18em] text-slate-700">Categories</h2>
                 <button type="button" onClick={() => setMobileFilterOpen(false)} className="flex h-7 w-7 items-center justify-center rounded-full border border-slate-200 bg-white text-lg leading-none text-slate-600 shadow-sm hover:bg-slate-100 hover:text-slate-900" aria-label="Close category panel">×</button>
@@ -295,12 +287,6 @@ export default function Shop({ products = [], categories = [], q = '', category 
         </aside>
 
         <div>
-          <div className="mb-3 lg:hidden">
-            <button type="button" onClick={() => setMobileFilterOpen(true)} className="inline-flex items-center justify-center rounded-xl border border-slate-200 bg-white px-2.5 py-1.5 text-[11px] font-semibold text-slate-700 shadow-sm hover:border-primary hover:text-primary">
-              Browse Categories
-            </button>
-          </div>
-
           {selectedCats.length > 0 && (
             <div className="mb-3 flex flex-wrap items-center gap-2 lg:hidden">
               <span className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-500">Selected</span>
@@ -313,13 +299,14 @@ export default function Shop({ products = [], categories = [], q = '', category 
             </div>
           )}
 
-          <div ref={resultsRef} className="shop-results-grid grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 xl:grid-cols-4 gap-4">
+          <div ref={resultsRef} className="shop-results-grid grid grid-cols-2 sm:grid-cols-2 md:grid-cols-3 xl:grid-cols-4 gap-2.5 sm:gap-3 md:gap-4">
             {pageProducts.map((product) => (
               <div key={product._id}>
                 <ProductCard product={product} />
               </div>
             ))}
           </div>
+          {pageProducts.length === 0 && <p className="py-8 text-center text-sm text-slate-500">No products found. Try a different search or category.</p>}
         </div>
       </div>
 
@@ -333,14 +320,6 @@ export default function Shop({ products = [], categories = [], q = '', category 
         </nav>
       )}
 
-      <div className="text-center mt-10">
-        <Link
-          href="/contact"
-          className="inline-flex px-6 py-3 rounded-lg btn-primary"
-        >
-          Need Help? Contact Us
-        </Link>
-      </div>
     </main>
   );
 }

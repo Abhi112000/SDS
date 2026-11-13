@@ -9,6 +9,9 @@ export default function AdminOrders(){
   const [orders, setOrders] = useState([]);
   const [guestOrders, setGuestOrders] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const [page, setPage] = useState(0);
+  const [totals, setTotals] = useState({ account: 0, guest: 0 });
   const [expandedGroups, setExpandedGroups] = useState({});
   const [search, setSearch] = useState('');
   const toast = useToast();
@@ -25,33 +28,36 @@ export default function AdminOrders(){
     return Object.values(map).map(group => ({ ...group, typeLabel: group.types.size > 1 ? 'Guest + Account holder' : group.types.has('guest') ? 'Guest' : 'Account holder', orders: group.orders.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt)) })).filter(group => !term || [group.name, group.phone, ...group.orders.map(order => JSON.stringify(order).toLowerCase())].join(' ').includes(term)).sort((a, b) => new Date(b.orders[0]?.createdAt) - new Date(a.orders[0]?.createdAt));
   }, [orders, guestOrders, search]);
 
-  async function load(){
+  async function load(loadMore = false){
+    const nextPage = loadMore ? page + 1 : 1;
+    if(loadMore) setLoadingMore(true);
+    else setLoading(true);
     try{
-      const r = await fetch('/api/orders?admin=true', { credentials: 'include' });
-      const j = await r.json();
-      if(!r.ok){
-        toast?.push?.({ message: 'Unable to load orders', type: 'error' });
-      }
-      setOrders(Array.isArray(j) ? j : (j && j.orders) || []);
-      try{
-        const g = await fetch('/api/admin/guest-orders', { credentials: 'include' });
-        const gj = await g.json();
-        if(!g.ok){
-          toast?.push?.({ message: 'Unable to load guest orders', type: 'error' });
-        }
-        setGuestOrders(Array.isArray(gj) ? gj : (gj && gj.orders) || []);
-      }catch(ge){
-        console.warn('guest orders load failed', ge);
-        toast?.push?.({ message: 'Unable to load guest orders', type: 'error' });
-      }
+      const [r, g] = await Promise.all([
+        fetch(`/api/orders?admin=true&page=${nextPage}&limit=50`, { credentials: 'include' }),
+        fetch(`/api/admin/guest-orders?page=${nextPage}&limit=50`, { credentials: 'include' })
+      ]);
+      const [j, gj] = await Promise.all([r.json(), g.json()]);
+      if(!r.ok) throw new Error(j.error || 'Unable to load account orders');
+      if(!g.ok) throw new Error(gj.error || 'Unable to load guest orders');
+      const accountOrders = j.orders || [];
+      const newGuestOrders = gj.orders || [];
+      setOrders(prev => loadMore ? [...prev, ...accountOrders] : accountOrders);
+      setGuestOrders(prev => loadMore ? [...prev, ...newGuestOrders] : newGuestOrders);
+      setTotals({ account: j.total || 0, guest: gj.total || 0 });
+      setPage(nextPage);
     }catch(e){
       console.error('load orders failed', e);
-      toast?.push?.({ message: 'Unable to load orders', type: 'error' });
+      toast?.push?.({ message: e.message || 'Unable to load orders', type: 'error' });
+    } finally {
+      setLoading(false);
+      setLoadingMore(false);
     }
-    setLoading(false);
   }
 
   useEffect(()=>{ load(); },[]);
+
+  const hasMore = page * 50 < Math.max(totals.account, totals.guest);
 
   return (
     <div className="p-6">
@@ -69,7 +75,7 @@ export default function AdminOrders(){
           </div>
 
           <div className="bg-white p-4 rounded shadow">
-            {loading ? (<div>Loading…</div>) : groupedOrders.length === 0 ? (<div className="text-sm text-gray-500">No orders found.</div>) : (
+            {loading ? (<div>Loading…</div>) : groupedOrders.length === 0 ? (<div className="text-sm text-gray-500">No orders found in the loaded pages.</div>) : (
               <div className="space-y-3">
                 {groupedOrders.map(group => (
                   <div key={group.key} className="border rounded">
@@ -87,6 +93,7 @@ export default function AdminOrders(){
                 ))}
               </div>
             )}
+            {!loading && hasMore && <div className="pt-3 text-center"><button type="button" onClick={()=>load(true)} disabled={loadingMore} className="px-4 py-2 border rounded">{loadingMore ? 'Loading…' : `Load more orders (${orders.length + guestOrders.length} of ${totals.account + totals.guest})`}</button></div>}
           </div>
         </main>
       </div>

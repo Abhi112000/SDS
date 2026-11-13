@@ -1,12 +1,13 @@
-import { getSession, useSession } from 'next-auth/react';
+import { getSession } from 'next-auth/react';
 import { useState } from 'react';
 import { useRouter } from 'next/router';
 import { useToast } from '@/components/Toast';
 import AdminSidebar from '@/components/AdminSidebar';
 import { authRedirect } from '@/lib/authRedirect';
+import dbConnect from '@/lib/mongodb';
+import User from '@/models/User';
 
 export default function AdminProfile({ user }) {
-  const { data: session } = useSession();
   const router = useRouter();
   const [form, setForm] = useState({
     name: user?.name || '',
@@ -23,10 +24,12 @@ export default function AdminProfile({ user }) {
     try{
       setLoading(true);
       const res = await fetch('/api/profile', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, credentials: 'include', body: JSON.stringify(form) });
-      if(!res.ok) throw new Error('Save failed');
+      const result = await res.json();
+      if(!res.ok) throw new Error(result.error || 'Unable to save profile');
+      setForm(current => ({ ...current, ...result.user }));
       toast?.push?.({ title: 'Profile updated', message: 'Your profile changes were saved', type: 'success' });
-    }catch(e){ console.error(e); toast?.push?.({ title: 'Save failed', message: 'Something went wrong while saving profile', type: 'error' }); }
-    setLoading(false);
+    }catch(e){ console.error(e); toast?.push?.({ title: 'Save failed', message: e.message || 'Something went wrong while saving profile', type: 'error' }); }
+    finally { setLoading(false); }
   };
 
   return (
@@ -65,5 +68,20 @@ export default function AdminProfile({ user }) {
 export async function getServerSideProps(ctx){
   const session = await getSession(ctx);
   if(!session || session.user?.role !== 'admin') return authRedirect(ctx);
-  return { redirect: { destination: '/admin', permanent: false } };
+  await dbConnect();
+  const user = await User.findOne({ email: session.user.email })
+    .select('name email phone address locationUrl')
+    .lean();
+  if (!user) return { redirect: { destination: '/login', permanent: false } };
+  return {
+    props: {
+      user: {
+        name: user.name || '',
+        email: user.email,
+        phone: user.phone || '',
+        address: user.address || '',
+        locationUrl: user.locationUrl || ''
+      }
+    }
+  };
 }

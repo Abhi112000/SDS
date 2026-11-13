@@ -7,7 +7,7 @@ export default async function handler(req,res){
   const session = await getSession({ req });
   if(!session || session.user.role !== 'admin') return res.status(403).json({ error: 'admin required' });
   if(req.method === 'GET'){
-    const users = await User.find({}).select('name email role createdAt').lean();
+    const users = await User.find({}).select('name email role disabled createdAt').lean();
     return res.status(200).json({ ok:true, users });
   }
   if(req.method === 'PUT'){

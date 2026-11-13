@@ -1,6 +1,6 @@
 import { getSession } from 'next-auth/react';
 import dbConnect from '@/lib/mongodb';
-import Inventory from '@/models/Inventory';
+import Product from '@/models/Product';
 
 export default async function handler(req, res){
   await dbConnect();
@@ -9,7 +9,7 @@ export default async function handler(req, res){
 
   try{
     // count items where stock < minStockLevel
-    const count = await Inventory.countDocuments({ $expr: { $lt: ['$stock', '$minStockLevel'] } });
+    const count = await Product.countDocuments({ $expr: { $lt: ['$stock', { $ifNull: ['$minStockLevel', 0] }] } });
     return res.json({ count });
   }catch(e){ console.error('low-stock count failed', e); return res.status(500).json({ error: 'internal' }); }
 }

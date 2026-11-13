@@ -14,8 +14,18 @@ export function CartProvider({ children }){
     setHydrated(true);
   }, []);
   useEffect(()=>{
-    if(hydrated) localStorage.setItem('sd_cart', JSON.stringify({ items: cart.items }));
-  }, [cart.items, hydrated]);
+    if(hydrated) localStorage.setItem('sd_cart', JSON.stringify({ items: cart.items, coupon: cart.coupon }));
+  }, [cart.items, cart.coupon, hydrated]);
+  useEffect(()=>{
+    const coupon = cart.coupon;
+    if(!hydrated || !coupon || !['percent', 'fixed'].includes(coupon.type)) return;
+    const currentSubtotal = cart.items.reduce((sum, item) => sum + Number(item.qty || 0) * Number(item.price || 0), 0);
+    const value = Number(coupon.value || 0);
+    const discount = Math.max(0, Math.min(currentSubtotal, coupon.type === 'percent' ? Math.round((value / 100) * currentSubtotal) : value));
+    if(Number(coupon.discount) !== discount){
+      setCart(previous => previous.coupon?.code === coupon.code ? { ...previous, coupon: { ...previous.coupon, discount } } : previous);
+    }
+  }, [cart.items, cart.coupon, hydrated]);
   const add = (product, qty=1)=> setCart(prev=>{
     const items = [...prev.items];
     const productId = product._id || product.sku || (product.title || '').replace(/\s+/g,'-').toLowerCase();

@@ -81,8 +81,9 @@ export default function DailySalesEntry({ onSuccess }){
       if(typeof onSuccess === 'function') onSuccess(body);
     }catch(e){
       console.error('submit failed', e); showToast('Unable to submit', 'error');
+    }finally{
+      setBusy(false);
     }
-    setBusy(false);
   }
 
   return (

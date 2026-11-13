@@ -5,33 +5,12 @@ import { CartProvider } from '../components/CartContext';
 import Header from '../components/Header';
 import Footer from '../components/Footer';
 import { ToastProvider } from '../components/Toast';
-import { useEffect, useRef, useState } from 'react';
-import Router from 'next/router';
+import { useRouter } from 'next/router';
 
 export default function App({ Component, pageProps: { session, ...pageProps } }) {
-  const [loadingRoute, setLoadingRoute] = useState(false);
-  const routeTimer = useRef(null);
-
-  useEffect(()=>{
-    const handleStart = () => {
-      if (routeTimer.current) clearTimeout(routeTimer.current);
-      routeTimer.current = setTimeout(() => setLoadingRoute(true), 180);
-    };
-    const handleStop = () => {
-      if (routeTimer.current) clearTimeout(routeTimer.current);
-      routeTimer.current = null;
-      setLoadingRoute(false);
-    };
-    Router.events.on('routeChangeStart', handleStart);
-    Router.events.on('routeChangeComplete', handleStop);
-    Router.events.on('routeChangeError', handleStop);
-    return () => {
-      if (routeTimer.current) clearTimeout(routeTimer.current);
-      Router.events.off('routeChangeStart', handleStart);
-      Router.events.off('routeChangeComplete', handleStop);
-      Router.events.off('routeChangeError', handleStop);
-    };
-  },[]);
+  const router = useRouter();
+  const compactPage = ['/', '/shop'].includes(router.pathname);
+  const accountPage = ['/cart', '/login'].includes(router.pathname);
 
   const nextAuthBaseUrl = process.env.NEXT_PUBLIC_BASE_URL || 'https://sdstationery.vercel.app';
 
@@ -47,12 +26,7 @@ export default function App({ Component, pageProps: { session, ...pageProps } })
             <meta name="theme-color" content="#B71C1C" />
           </Head>
           <Header />
-          {loadingRoute && (
-            <div aria-live="polite" className="pointer-events-none fixed left-0 right-0 top-0 z-[100] h-1 overflow-hidden bg-red-100">
-              <div className="h-full w-1/3 animate-[route-progress_1s_ease-in-out_infinite] bg-red-600" />
-            </div>
-          )}
-          <main className="min-h-[70vh] container mx-auto px-3 py-4 md:px-4 md:py-5">
+          <main className={compactPage ? 'min-h-0 w-full' : accountPage ? 'min-h-[50vh] w-full px-3 py-3 md:px-4 md:py-4' : 'min-h-[70vh] container mx-auto px-3 py-4 md:px-4 md:py-5'}>
             <Component {...pageProps} />
           </main>
           <Footer />
