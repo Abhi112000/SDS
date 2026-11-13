@@ -1,10 +1,11 @@
 import { getSession } from 'next-auth/react';
 import dbConnect from '@/lib/mongodb';
 import Product from '../../models/Product';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useToast } from '@/components/Toast';
 import AdminSidebar from '@/components/AdminSidebar';
 import { authRedirect } from '@/lib/authRedirect';
+import { getProductIdeas } from '@/lib/productIdeas';
 
 // client-side resize helper — returns a Blob
 async function resizeImage(file, maxWidth = 1200, maxHeight = 1200, quality = 0.8){
@@ -57,6 +58,23 @@ export default function AdminProducts({ initial }){
   const [bulkRows, setBulkRows] = useState([]);
   const [bulkDecisions, setBulkDecisions] = useState({});
   const [bulkBusy, setBulkBusy] = useState(false);
+  const [ideaQuery, setIdeaQuery] = useState('');
+  const [ideaCategory, setIdeaCategory] = useState('');
+  const [selectedIdeas, setSelectedIdeas] = useState([]);
+  const [ideaBatchRows, setIdeaBatchRows] = useState([]);
+  const [ideaBatchPreview, setIdeaBatchPreview] = useState([]);
+  const [ideaBatchDecisions, setIdeaBatchDecisions] = useState({});
+  const [ideaBatchBusy, setIdeaBatchBusy] = useState(false);
+  const [newIdeaCategory, setNewIdeaCategory] = useState('');
+  const [showNewIdeaCategory, setShowNewIdeaCategory] = useState(false);
+  const [savingIdeaCategory, setSavingIdeaCategory] = useState(false);
+  const [researchUrl, setResearchUrl] = useState('');
+  const [researchBusy, setResearchBusy] = useState(false);
+  const [researchResult, setResearchResult] = useState(null);
+  const [researchImage, setResearchImage] = useState('');
+  const productFormRef = useRef(null);
+  const productIdeas = getProductIdeas(ideaQuery);
+  const ideaKey = idea => `${idea.category || ''}::${idea.title}`;
 
   async function load(){
     setLoading(true);
@@ -81,6 +99,210 @@ export default function AdminProducts({ initial }){
       console.warn('load categories failed', e);
       toast?.push?.({ message: 'Unable to load categories', type: 'error' });
     }
+  }
+
+  async function createIdeaCategory(){
+    const trimmedName = newIdeaCategory.trim();
+    if(!trimmedName) return toast?.push?.({ message: 'Enter a category name', type: 'error' });
+    const existing = categories.find(category => String(category.name || '').toLowerCase() === trimmedName.toLowerCase());
+    if(existing){
+      setIdeaCategory(existing.name);
+      setForm(previous => ({ ...previous, category: existing.name }));
+      setNewIdeaCategory('');
+      setShowNewIdeaCategory(false);
+      return toast?.push?.({ message: `Using existing category "${existing.name}"`, type: 'info' });
+    }
+    setSavingIdeaCategory(true);
+    try{
+      const response = await fetch('/api/admin/categories', {
+        method: 'POST',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name: trimmedName })
+      });
+      const body = await response.json();
+      if(!response.ok) throw new Error(body.error || 'Unable to create category');
+      setCategories(previous => previous.some(category => String(category._id) === String(body._id)) ? previous : [...previous, body]);
+      setIdeaCategory(body.name);
+      setForm(previous => ({ ...previous, category: body.name }));
+      setNewIdeaCategory('');
+      setShowNewIdeaCategory(false);
+      toast?.push?.({ message: `Category "${body.name}" added`, type: 'success' });
+    }catch(error){
+      toast?.push?.({ message: error.message || 'Unable to create category', type: 'error' });
+    }finally{
+      setSavingIdeaCategory(false);
+    }
+  }
+
+  function useProductIdea(idea){
+    const existingCategory = categories.find(category => String(category.name || '').toLowerCase() === String(idea.category || '').toLowerCase());
+    setEditingId(null);
+    setForm(previous => ({
+      ...previous,
+      title: idea.title,
+      category: ideaCategory || existingCategory?.name || '',
+      price: '',
+      originalPrice: '',
+      sku: '',
+      stock: 0,
+      description: '',
+      images: [],
+      featuredImage: '',
+      featured: false,
+      isNewArrival: false,
+      onSale: false,
+      salePrice: '',
+      tags: [],
+      saleHistory: []
+    }));
+    productFormRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    toast?.push?.({ message: 'Idea loaded into the product form. Add price, stock and product details.', type: 'info' });
+  }
+
+  function toggleProductIdea(idea){
+    const key = ideaKey(idea);
+    setSelectedIdeas(previous => previous.some(item => ideaKey(item) === key)
+      ? previous.filter(item => ideaKey(item) !== key)
+      : [...previous, idea]);
+  }
+
+  function addIdeasToBatch(){
+    if(!selectedIdeas.length) return;
+    setIdeaBatchRows(previous => {
+      const existing = new Set(previous.map(row => `${row.category || ''}::${row.title.toLowerCase()}`));
+      const additions = [];
+      selectedIdeas.forEach(idea => {
+        const category = ideaCategory || idea.category || 'General';
+        const key = `${category}::${idea.title.toLowerCase()}`;
+        if(existing.has(key)) return;
+        existing.add(key);
+        additions.push({
+          title: idea.title,
+          description: '',
+          price: '',
+          originalPrice: '',
+          stock: 0,
+          featured: false,
+          category
+        });
+      });
+      return [...previous, ...additions];
+    });
+    setIdeaBatchPreview([]);
+    setSelectedIdeas([]);
+    toast?.push?.({ message: 'Selected ideas added to the batch. Enter each item’s price and stock, then preview.', type: 'success' });
+  }
+
+  function updateIdeaBatchRow(index, patch){
+    setIdeaBatchRows(previous => previous.map((row, rowIndex) => rowIndex === index ? { ...row, ...patch } : row));
+    setIdeaBatchPreview([]);
+  }
+
+  async function previewIdeaBatch(){
+    if(!ideaBatchRows.length) return;
+    setIdeaBatchBusy(true);
+    try{
+      const response = await fetch('/api/admin/products/bulk', {
+        method: 'POST',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ rows: ideaBatchRows })
+      });
+      const body = await response.json();
+      if(!response.ok) throw new Error(body.error || 'Unable to preview product batch');
+      setIdeaBatchPreview(body.rows || []);
+      setIdeaBatchDecisions(Object.fromEntries((body.rows || []).filter(row => row.duplicate).map(row => [String(row.rowNumber), 'skip'])));
+      const invalid = (body.rows || []).filter(row => row.errors?.length).length;
+      toast?.push?.({ message: invalid ? `${invalid} row(s) need valid title, price or stock.` : `Preview ready for ${(body.rows || []).length} products.`, type: invalid ? 'error' : 'success' });
+    }catch(error){
+      toast?.push?.({ message: error.message || 'Unable to preview product batch', type: 'error' });
+    }finally{
+      setIdeaBatchBusy(false);
+    }
+  }
+
+  async function createIdeaBatch(){
+    const invalid = ideaBatchPreview.filter(row => row.errors?.length);
+    if(invalid.length) return toast?.push?.({ message: 'Fix invalid rows before creating products', type: 'error' });
+    if(!ideaBatchPreview.length) return;
+    setIdeaBatchBusy(true);
+    try{
+      const response = await fetch('/api/admin/products/bulk', {
+        method: 'POST',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ rows: ideaBatchPreview, decisions: ideaBatchDecisions, commit: true })
+      });
+      const body = await response.json();
+      if(!response.ok) throw new Error(body.error || 'Unable to create products');
+      toast?.push?.({ message: `Batch complete: ${body.created} created, ${body.updated} updated, ${body.skipped} skipped.`, type: 'success' });
+      setIdeaBatchRows([]);
+      setIdeaBatchPreview([]);
+      setIdeaBatchDecisions({});
+      load();
+    }catch(error){
+      toast?.push?.({ message: error.message || 'Unable to create products', type: 'error' });
+    }finally{
+      setIdeaBatchBusy(false);
+    }
+  }
+
+  async function researchProductPage(event){
+    event.preventDefault();
+    if(!researchUrl.trim()) return toast?.push?.({ message: 'Paste a product page URL first', type: 'error' });
+    setResearchBusy(true);
+    setResearchResult(null);
+    setResearchImage('');
+    try{
+      const response = await fetch('/api/admin/products/research', {
+        method: 'POST',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ url: researchUrl.trim() })
+      });
+      const body = await response.json();
+      if(!response.ok) throw new Error(body.error || 'Unable to read product page');
+      setResearchResult(body);
+      setResearchImage(body.product.images[0] || '');
+      toast?.push?.({ message: 'Product page details extracted. Review them before using.', type: 'success' });
+    }catch(error){
+      toast?.push?.({ message: error.message || 'Product page import failed', type: 'error' });
+    }finally{
+      setResearchBusy(false);
+    }
+  }
+
+  function useResearchResult(useImage){
+    if(!researchResult?.product) return;
+    const product = researchResult.product;
+    const sourceCategory = categories.find(category => String(category.name || '').toLowerCase() === String(product.category || '').toLowerCase());
+    const suggestedCategory = ideaCategory || sourceCategory?.name || '';
+    setEditingId(null);
+    setForm(previous => ({
+      ...previous,
+      title: product.title || previous.title,
+      description: product.description || previous.description,
+      category: suggestedCategory,
+      price: '',
+      originalPrice: '',
+      sku: '',
+      stock: 0,
+      images: useImage && researchImage ? [researchImage] : [],
+      featuredImage: useImage ? researchImage : '',
+      featured: false,
+      isNewArrival: false,
+      onSale: false,
+      salePrice: '',
+      tags: [],
+      saleHistory: []
+    }));
+    if(product.category && !sourceCategory && !ideaCategory){
+      setNewIdeaCategory(product.category);
+      setShowNewIdeaCategory(true);
+    }
+    productFormRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    toast?.push?.({ message: useImage && product.images[0] ? 'Details and image loaded. Check source image rights before saving.' : 'Product details loaded. Set SDS price, SKU and stock before saving.', type: 'info' });
   }
 
   async function downloadBulkTemplate(existing = false){
@@ -437,8 +659,134 @@ export default function AdminProducts({ initial }){
             )}
           </section>
 
+          <section className="bg-white p-4 rounded shadow mb-6">
+            <div className="flex flex-wrap items-start justify-between gap-3">
+              <div>
+                <h2 className="text-lg font-semibold">Product Research Assistant</h2>
+                <p className="text-sm text-gray-600">Free product ideas plus a product-page importer. Google helps you discover sources; this tool reads only a product page you choose.</p>
+              </div>
+              <span className="rounded-full bg-emerald-50 px-3 py-1 text-xs font-medium text-emerald-700">No paid search or AI API</span>
+            </div>
+            <div className="mt-3 grid gap-2 md:grid-cols-[minmax(0,1fr)_minmax(180px,0.6fr)_auto]">
+              <input value={ideaQuery} onChange={event=>setIdeaQuery(event.target.value)} placeholder="Try pencils, gel pen, notebook, art supplies..." className="w-full p-2 border rounded" />
+              <select value={ideaCategory} onChange={event=>setIdeaCategory(event.target.value)} className="w-full p-2 border rounded">
+                <option value="">Use suggested category if available</option>
+                {categories.map(category => <option key={category._id || category.id} value={category.name}>{category.name}</option>)}
+              </select>
+              <button type="button" onClick={()=>setShowNewIdeaCategory(previous => !previous)} className="px-3 py-2 border rounded">+ Add category</button>
+            </div>
+            {showNewIdeaCategory && (
+              <div className="mt-2 flex flex-wrap gap-2">
+                <input value={newIdeaCategory} onChange={event=>setNewIdeaCategory(event.target.value)} onKeyDown={event=>{ if(event.key === 'Enter'){ event.preventDefault(); createIdeaCategory(); } }} placeholder="New category name" className="min-w-[220px] flex-1 p-2 border rounded" />
+                <button type="button" onClick={createIdeaCategory} disabled={savingIdeaCategory} className="px-3 py-2 bg-blue-600 text-white rounded disabled:opacity-60">{savingIdeaCategory ? 'Adding...' : 'Save category'}</button>
+              </div>
+            )}
+            {ideaQuery.trim() && (
+              <div className="mt-3 flex flex-wrap gap-2 text-sm">
+                <a className="rounded border px-3 py-2 text-blue-700 hover:bg-blue-50" href={`https://www.google.com/search?tbm=shop&q=${encodeURIComponent(`${ideaQuery} stationery India`)}`} target="_blank" rel="noreferrer">Find products on Google Shopping ↗</a>
+                <a className="rounded border px-3 py-2 text-blue-700 hover:bg-blue-50" href={`https://www.google.com/search?tbm=isch&q=${encodeURIComponent(`${ideaQuery} stationery product`)}`} target="_blank" rel="noreferrer">Browse Google Images ↗</a>
+              </div>
+            )}
+            <form onSubmit={researchProductPage} className="mt-4 rounded-lg border bg-slate-50 p-3">
+              <label className="block text-sm font-medium" htmlFor="research-product-url">Import details from a product page</label>
+              <p className="mt-1 text-xs text-slate-600">Open a product from search, copy its product-page URL here. The tool reads page metadata only; it does not scrape Google search results.</p>
+              <div className="mt-2 flex flex-col gap-2 sm:flex-row">
+                <input id="research-product-url" type="url" required value={researchUrl} onChange={event=>setResearchUrl(event.target.value)} placeholder="https://retailer.example/product/..." className="min-w-0 flex-1 p-2 border rounded" />
+                <button type="submit" disabled={researchBusy} className="rounded bg-slate-800 px-3 py-2 text-white disabled:opacity-60">{researchBusy ? 'Reading page…' : 'Read product page'}</button>
+              </div>
+            </form>
+            {researchResult?.product && (
+              <article className="mt-3 rounded-lg border border-blue-200 bg-blue-50/50 p-3">
+                <div className="flex flex-col gap-3 sm:flex-row">
+                {researchImage && <img src={researchImage} alt={researchResult.product.title || 'Product page image'} referrerPolicy="no-referrer" className="h-28 w-28 rounded border bg-white object-contain p-1" />}
+                  <div className="min-w-0 flex-1">
+                    <h3 className="font-semibold">{researchResult.product.title || 'Product metadata found'}</h3>
+                    <p className="mt-1 text-xs text-slate-600">Source: <a href={researchResult.sourceUrl} target="_blank" rel="noreferrer" className="break-all underline">{new URL(researchResult.sourceUrl).hostname}</a> • {researchResult.product.structuredProductFound ? 'Structured product data' : 'Page metadata'}</p>
+                    {researchResult.product.brand && <p className="mt-1 text-sm">Brand: {researchResult.product.brand}</p>}
+                    {researchResult.product.sourcePrice != null && <p className="mt-1 text-sm">Source price: {researchResult.product.currency || 'currency not stated'} {researchResult.product.sourcePrice} <span className="text-xs text-slate-500">(reference only; not copied to your selling price)</span></p>}
+                    {researchResult.product.description && <p className="mt-2 line-clamp-3 text-sm text-slate-700">{researchResult.product.description}</p>}
+                    <div className="mt-3 flex flex-wrap gap-2">
+                      <button type="button" onClick={()=>useResearchResult(false)} className="rounded bg-blue-700 px-3 py-1.5 text-sm text-white">Use details</button>
+                      {researchImage && <button type="button" onClick={()=>useResearchResult(true)} className="rounded border border-blue-700 px-3 py-1.5 text-sm text-blue-800">Use details + selected image</button>}
+                    </div>
+                  </div>
+                </div>
+                {researchResult.product.images.length > 1 && <div className="mt-3 flex flex-wrap gap-2">{researchResult.product.images.map(image => <button key={image} type="button" onClick={()=>setResearchImage(image)} className={`rounded border p-1 ${researchImage === image ? 'border-blue-700 ring-2 ring-blue-300' : 'border-slate-300'}`} aria-label="Select product image"><img src={image} alt="" referrerPolicy="no-referrer" className="h-14 w-14 bg-white object-contain" /></button>)}</div>}
+                <p className="mt-3 text-xs text-slate-600">Verify the name and details against the item you stock. Source prices can be outdated; only use images you have permission to publish.</p>
+              </article>
+            )}
+            {ideaQuery.trim() && productIdeas.length > 0 && (
+              <div className="mt-4">
+                <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
+                  <p className="text-sm text-slate-600">Select multiple ideas to prepare them together.</p>
+                  <div className="flex gap-2">
+                    <button type="button" onClick={()=>setSelectedIdeas(productIdeas)} className="rounded border px-3 py-1.5 text-sm">Select all {productIdeas.length}</button>
+                    <button type="button" onClick={()=>setSelectedIdeas([])} className="rounded border px-3 py-1.5 text-sm">Clear selection</button>
+                    <button type="button" onClick={addIdeasToBatch} disabled={!selectedIdeas.length} className="rounded bg-emerald-700 px-3 py-1.5 text-sm text-white disabled:opacity-50">Add selected ({selectedIdeas.length}) to batch</button>
+                  </div>
+                </div>
+                <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+                {productIdeas.map(idea => (
+                  <article key={ideaKey(idea)} className={`flex items-center justify-between gap-2 rounded border p-3 ${selectedIdeas.some(item => ideaKey(item) === ideaKey(idea)) ? 'border-blue-500 bg-blue-50' : ''}`}>
+                    <label className="flex min-w-0 flex-1 cursor-pointer items-start gap-2">
+                      <input type="checkbox" checked={selectedIdeas.some(item => ideaKey(item) === ideaKey(idea))} onChange={()=>toggleProductIdea(idea)} className="mt-1" />
+                      <span>
+                      <div className="font-medium text-sm">{idea.title}</div>
+                      {idea.category && <div className="mt-1 text-xs text-gray-500">Suggested category: {idea.category}</div>}
+                      </span>
+                    </label>
+                    <button type="button" onClick={()=>useProductIdea(idea)} className="shrink-0 rounded border px-2 py-1.5 text-xs">Use one</button>
+                  </article>
+                ))}
+                </div>
+              </div>
+            )}
+            {ideaBatchRows.length > 0 && (
+              <section className="mt-4 rounded-lg border border-emerald-200 bg-emerald-50/40 p-3">
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <div>
+                    <h3 className="font-semibold">Batch product setup ({ideaBatchRows.length})</h3>
+                    <p className="text-xs text-slate-600">Set each item’s selling price and stock. SKUs are generated automatically; source suggestions do not set prices.</p>
+                  </div>
+                  <button type="button" onClick={()=>{ setIdeaBatchRows([]); setIdeaBatchPreview([]); }} className="rounded border px-3 py-1.5 text-sm">Clear batch</button>
+                </div>
+                <div className="mt-3 space-y-2">
+                  {ideaBatchRows.map((row, index) => {
+                    const previewRow = ideaBatchPreview[index];
+                    return (
+                      <div key={`${row.category}-${row.title}-${index}`} className="grid gap-2 rounded border bg-white p-2 md:grid-cols-[minmax(160px,1.3fr)_minmax(130px,1fr)_100px_100px_90px_auto]">
+                        <input aria-label={`Product title ${index + 1}`} value={row.title} onChange={event=>updateIdeaBatchRow(index, { title: event.target.value })} className="min-w-0 rounded border p-2 text-sm" />
+                        <select aria-label={`Category ${index + 1}`} value={row.category} onChange={event=>updateIdeaBatchRow(index, { category: event.target.value })} className="min-w-0 rounded border p-2 text-sm">
+                          {!categories.some(category => category.name === row.category) && <option value={row.category}>{row.category}</option>}
+                          {categories.map(category => <option key={category._id || category.id} value={category.name}>{category.name}</option>)}
+                        </select>
+                        <input aria-label={`Selling price ${index + 1}`} type="number" min="0.01" step="0.01" placeholder="Price*" value={row.price} onChange={event=>updateIdeaBatchRow(index, { price: event.target.value === '' ? '' : Number(event.target.value) })} className="min-w-0 rounded border p-2 text-sm" />
+                        <input aria-label={`Original price ${index + 1}`} type="number" min="0" step="0.01" placeholder="Original price" value={row.originalPrice} onChange={event=>updateIdeaBatchRow(index, { originalPrice: event.target.value === '' ? '' : Number(event.target.value) })} className="min-w-0 rounded border p-2 text-sm" />
+                        <input aria-label={`Stock ${index + 1}`} type="number" min="0" step="1" placeholder="Stock" value={row.stock} onChange={event=>updateIdeaBatchRow(index, { stock: Number(event.target.value) })} className="min-w-0 rounded border p-2 text-sm" />
+                        <button type="button" onClick={()=>{ setIdeaBatchRows(previous=>previous.filter((_, rowIndex)=>rowIndex !== index)); setIdeaBatchPreview([]); }} className="rounded px-2 text-sm text-red-700">Remove</button>
+                        {previewRow?.errors?.length > 0 && <p className="md:col-span-full text-xs text-red-700">{previewRow.errors.join(', ')}</p>}
+                        {previewRow?.duplicate && <div className="md:col-span-full flex flex-wrap items-center gap-2 text-xs text-amber-800">
+                          <span>Similar existing product: {previewRow.duplicate.title} ({previewRow.duplicate.category})</span>
+                          <select value={ideaBatchDecisions[String(previewRow.rowNumber)] || 'skip'} onChange={event=>setIdeaBatchDecisions(previous=>({ ...previous, [String(previewRow.rowNumber)]: event.target.value }))} className="rounded border p-1">
+                            <option value="skip">Skip existing</option>
+                            <option value="update">Update existing</option>
+                          </select>
+                        </div>}
+                      </div>
+                    );
+                  })}
+                </div>
+                <div className="mt-3 flex flex-wrap gap-2">
+                  <button type="button" onClick={previewIdeaBatch} disabled={ideaBatchBusy} className="rounded border px-4 py-2 text-sm disabled:opacity-60">{ideaBatchBusy ? 'Checking…' : 'Preview batch'}</button>
+                  {ideaBatchPreview.length > 0 && <button type="button" onClick={createIdeaBatch} disabled={ideaBatchBusy || ideaBatchPreview.some(row=>row.errors?.length)} className="rounded bg-emerald-700 px-4 py-2 text-sm text-white disabled:opacity-50">{ideaBatchBusy ? 'Saving…' : `Create batch (${ideaBatchPreview.filter(row=>!row.duplicate || ideaBatchDecisions[String(row.rowNumber)] !== 'skip').length})`}</button>}
+                </div>
+              </section>
+            )}
+            {ideaQuery.trim() && productIdeas.length === 0 && <p className="mt-3 text-sm text-gray-500">Type a product name to see ideas.</p>}
+          </section>
+
           <div className="grid md:grid-cols-2 gap-6">
-            <div className="bg-white p-4 rounded shadow">
+            <div ref={productFormRef} className="bg-white p-4 rounded shadow scroll-mt-4">
               <h2 className="text-lg font-semibold mb-3">Create / Edit Product</h2>
               <form onSubmit={handleCreate} className="space-y-3">
                 <div>

@@ -180,8 +180,11 @@ export default async function handler(req, res) {
   if (req.method !== 'POST' || !(await requireAdmin(req, res))) return req.method === 'POST' ? undefined : res.status(405).end();
   try {
     const { fileBase64, decisions = {}, commit = false } = req.body || {};
-    if (!fileBase64) return res.status(400).json({ error: 'Excel file is required' });
-    const parsedRows = makeRowsFromWorkbook(Buffer.from(fileBase64, 'base64'));
+    const hasSubmittedRows = Array.isArray(req.body?.rows);
+    if (!fileBase64 && !hasSubmittedRows) return res.status(400).json({ error: 'Excel file or product rows are required' });
+    const parsedRows = hasSubmittedRows
+      ? normalizeRows(req.body.rows)
+      : makeRowsFromWorkbook(Buffer.from(fileBase64, 'base64'));
     const rows = commit && Array.isArray(req.body.rows)
       ? validateRows(req.body.rows)
       : validateRows(await findDuplicates(parsedRows));
